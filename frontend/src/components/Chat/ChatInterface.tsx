@@ -15,7 +15,7 @@ import {
   SmartToy as AIIcon,
   Person as PersonIcon,
 } from '@mui/icons-material';
-import { ChatMessage, ApiResponse } from '../../types';
+import type { ChatMessage, ApiResponse } from '../../types';
 import { ApiService } from '../../services/api';
 import BarChart from '../Charts/BarChart';
 import LineChart from '../Charts/LineChart';

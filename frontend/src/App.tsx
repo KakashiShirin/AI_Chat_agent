@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, useMediaQuery, Typography } from '@mui/material';
@@ -7,7 +7,7 @@ import Sidebar from './components/Layout/Sidebar';
 import ChatInterface from './components/Chat/ChatInterface';
 import SampleQueriesPanel from './components/SampleQueries/SampleQueriesPanel';
 import DatabaseTablesPanel from './components/Database/DatabaseTablesPanel';
-import { ChatMessage } from './types';
+import type { ChatMessage } from './types';
 
 const theme = createTheme({
   palette: {
@@ -26,7 +26,6 @@ const theme = createTheme({
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const handleSidebarToggle = () => {
@@ -41,12 +40,11 @@ function App() {
   };
 
   const handleMessageAdd = (message: ChatMessage) => {
-    setChatMessages(prev => [...prev, message]);
+    console.log('New message added:', message);
   };
 
   const handleQuerySelect = (query: string) => {
     setActiveTab('chat');
-    // You could implement auto-filling the chat input here
     console.log('Selected query:', query);
   };
 
@@ -96,9 +94,6 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: 'flex', height: '100vh' }}>
-        {/* Header */}
-        <Header onSettingsClick={handleSidebarToggle} />
-        
         {/* Sidebar */}
         <Sidebar
           open={sidebarOpen}
@@ -120,6 +115,9 @@ function App() {
             transition: 'margin-left 0.3s ease',
           }}
         >
+          {/* Header */}
+          <Header onSettingsClick={handleSidebarToggle} />
+          
           {/* Content Area */}
           <Box
             sx={{

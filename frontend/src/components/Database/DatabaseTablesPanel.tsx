@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
-  Grid,
   Chip,
   CircularProgress,
   Alert,
@@ -26,7 +23,7 @@ import {
   Link as LinkIcon,
 } from '@mui/icons-material';
 import { ApiService } from '../../services/api';
-import { DatabaseTable } from '../../types';
+import type { DatabaseTable } from '../../types';
 
 interface DatabaseTablesPanelProps {}
 
@@ -89,9 +86,9 @@ const DatabaseTablesPanel: React.FC<DatabaseTablesPanelProps> = () => {
         Explore the Brazilian e-commerce dataset structure. This dataset contains 9 interconnected tables with information about customers, orders, products, and more.
       </Typography>
 
-      <Grid container spacing={2}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {Object.entries(tables).map(([tableName, tableInfo]) => (
-          <Grid item xs={12} key={tableName}>
+          <Box key={tableName}>
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -212,9 +209,9 @@ const DatabaseTablesPanel: React.FC<DatabaseTablesPanelProps> = () => {
                 )}
               </AccordionDetails>
             </Accordion>
-          </Grid>
+          </Box>
         ))}
-      </Grid>
+      </Box>
 
       <Box sx={{ mt: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
         <Typography variant="body2" color="text.secondary">

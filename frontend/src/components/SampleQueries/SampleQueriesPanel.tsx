@@ -6,7 +6,6 @@ import {
   CardContent,
   CardActions,
   Button,
-  Grid,
   Chip,
   CircularProgress,
   Alert,
@@ -89,13 +88,13 @@ const SampleQueriesPanel: React.FC<SampleQueriesPanelProps> = ({ onQuerySelect }
         Click on any query below to try it out. These examples demonstrate the types of questions you can ask about the Brazilian e-commerce dataset.
       </Typography>
 
-      <Grid container spacing={2}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 2 }}>
         {queries.map((query, index) => {
           const category = getQueryCategory(query);
           const color = getCategoryColor(category);
           
           return (
-            <Grid item xs={12} sm={6} md={4} key={index}>
+            <Box key={index}>
               <Card 
                 sx={{ 
                   height: '100%',
@@ -131,10 +130,10 @@ const SampleQueriesPanel: React.FC<SampleQueriesPanelProps> = ({ onQuerySelect }
                   </Button>
                 </CardActions>
               </Card>
-            </Grid>
+            </Box>
           );
         })}
-      </Grid>
+      </Box>
 
       <Box sx={{ mt: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
         <Typography variant="body2" color="text.secondary">

@@ -6,17 +6,18 @@ An intelligent conversational interface for business intelligence that allows us
 
 This project implements an AI-powered data agent that:
 - Processes natural language questions about business data
-- Generates accurate SQL queries using T5-based Text-to-SQL models
+- Generates accurate SQL queries using a hybrid approach (rule-based + AI)
 - Provides natural language summaries of results
 - Automatically generates relevant visualizations and tables
 - Handles complex, "dirty" data from real-world e-commerce datasets
+- Optimized for Vercel deployment with cost-effective AI integration
 
 ## Technical Stack
 
 - **Frontend**: React with Vite, Material-UI (MUI), Recharts
 - **Backend**: Python with FastAPI
 - **Database**: PostgreSQL
-- **AI Model**: T5-based Text-to-SQL from Hugging Face Transformers
+- **AI Model**: Hybrid approach - Rule-based + Hugging Face AI (microsoft/DialoGPT-small)
 - **Deployment**: Vercel
 
 ## Dataset
@@ -45,10 +46,24 @@ Brazilian E-Commerce Public Dataset by Olist (9 interconnected tables):
 
 ## Development Phases
 
-1. **Phase 1**: Project Setup & Data Foundation
-2. **Phase 2**: Backend Core - AI Agent
-3. **Phase 3**: Frontend Interface
+1. **Phase 1**: Project Setup & Data Foundation ✅
+2. **Phase 2**: Backend Core - AI Agent ✅
+3. **Phase 3**: Frontend Interface (In Progress)
 4. **Phase 4**: Integration, Refinement & Deployment
+
+### Phase 2 Implementation Details
+
+**Hybrid AI Approach**: 
+- **Rule-based generation** for simple queries (COUNT, TOP, AVERAGE, SUM)
+- **Hugging Face AI** for complex queries (1,000 free requests/month)
+- **Automatic fallback** to rule-based if AI fails
+- **Smart query routing** based on complexity detection
+
+**Vercel Optimization**:
+- Lightweight dependencies (no heavy ML models)
+- Fast startup and response times (0.01-0.03s)
+- Cost-effective AI integration
+- Free tier compatible
 
 ## Getting Started
 

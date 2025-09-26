@@ -1,6 +1,6 @@
 """
 AI service for Text-to-SQL generation and natural language processing
-Using a lightweight rule-based approach for Vercel deployment
+Using a hybrid approach: rule-based for simple queries, AI for complex ones
 """
 
 import asyncio
@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List
 import json
 import re
 import pandas as pd
+from huggingface_hub import InferenceClient
 
 from .db_service import DatabaseService
 from models.schemas import VisualizationType
@@ -16,11 +17,12 @@ from models.schemas import VisualizationType
 logger = logging.getLogger(__name__)
 
 class AIService:
-    """Service for rule-based Text-to-SQL generation (Vercel-optimized)"""
+    """Service for hybrid Text-to-SQL generation (Vercel-optimized)"""
     
     def __init__(self, db_service: DatabaseService):
         self.db_service = db_service
         self.schema_info = None
+        self.hf_client = None
         self.table_aliases = {
             'orders': 'olist_orders_dataset',
             'order': 'olist_orders_dataset',
@@ -44,12 +46,20 @@ class AIService:
     async def initialize(self):
         """Initialize the AI service and load schema information"""
         try:
-            logger.info("Initializing lightweight AI service...")
+            logger.info("Initializing hybrid AI service...")
             
             # Load schema information
             self.schema_info = await self.db_service.get_schema_info()
             
-            logger.info("AI service initialized successfully")
+            # Initialize Hugging Face client for complex queries
+            try:
+                self.hf_client = InferenceClient("microsoft/DialoGPT-small")
+                logger.info("Hugging Face client initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Hugging Face client: {e}")
+                self.hf_client = None
+            
+            logger.info("Hybrid AI service initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize AI service: {e}")
@@ -209,18 +219,114 @@ class AIService:
                 ORDER BY count DESC;
             """
     
+    def _is_simple_query(self, question: str) -> bool:
+        """Determine if a query is simple enough for rule-based generation"""
+        keywords = self._extract_keywords(question)
+        
+        # Simple queries that our rule-based system handles well
+        simple_patterns = [
+            'count' in keywords and ('order' in keywords or 'customer' in keywords or 'product' in keywords),
+            'top' in keywords and 'state' in keywords and 'customer' in keywords,
+            'top' in keywords and 'category' in keywords,
+            'average' in keywords and ('order' in keywords or 'payment' in keywords),
+            'sum' in keywords and 'revenue' in keywords,
+            'month' in keywords or 'year' in keywords
+        ]
+        
+        return any(simple_patterns)
+    
     async def generate_sql(self, question: str) -> str:
-        """Generate SQL query from natural language question using rule-based approach"""
+        """Generate SQL query using hybrid approach"""
         try:
-            sql_query = self._generate_sql_rule_based(question)
-            sql_query = self._clean_sql_query(sql_query)
+            # Try rule-based first for simple queries
+            if self._is_simple_query(question):
+                logger.info("Using rule-based generation for simple query")
+                sql_query = self._generate_sql_rule_based(question)
+            else:
+                # Use AI for complex queries
+                logger.info("Using AI generation for complex query")
+                sql_query = await self._generate_sql_with_ai(question)
             
+            sql_query = self._clean_sql_query(sql_query)
             logger.info(f"Generated SQL: {sql_query}")
             return sql_query
             
         except Exception as e:
             logger.error(f"Error generating SQL: {e}")
+            # Fallback to rule-based if AI fails
+            logger.info("Falling back to rule-based generation")
+            return self._generate_sql_rule_based(question)
+    
+    async def _generate_sql_with_ai(self, question: str) -> str:
+        """Generate SQL using Hugging Face AI model"""
+        if not self.hf_client:
+            raise Exception("Hugging Face client not available")
+        
+        # Create a prompt for the AI model
+        schema_summary = self._get_schema_summary()
+        prompt = f"""
+        Convert this natural language question to SQL for a Brazilian e-commerce database.
+        
+        Database Schema:
+        {schema_summary}
+        
+        Question: {question}
+        
+        Return only the SQL query:
+        """
+        
+        try:
+            # Use the Hugging Face client to generate SQL
+            response = self.hf_client.text_generation(
+                prompt,
+                max_new_tokens=200,
+                temperature=0.1,
+                do_sample=True
+            )
+            
+            # Extract SQL from response
+            sql_query = self._extract_sql_from_response(response)
+            return sql_query
+            
+        except Exception as e:
+            logger.error(f"AI generation failed: {e}")
             raise
+    
+    def _get_schema_summary(self) -> str:
+        """Get a summary of the database schema for AI prompts"""
+        if not self.schema_info:
+            return "Database schema not available"
+        
+        summary = "Tables and key columns:\n"
+        for table_name, table_info in self.schema_info.items():
+            summary += f"- {table_name}: "
+            columns = list(table_info['columns'].keys())[:5]  # First 5 columns
+            summary += ", ".join(columns)
+            if len(table_info['columns']) > 5:
+                summary += "..."
+            summary += "\n"
+        
+        return summary
+    
+    def _extract_sql_from_response(self, response: str) -> str:
+        """Extract SQL query from AI response"""
+        # Look for SQL patterns in the response
+        sql_patterns = [
+            r'SELECT.*?;',
+            r'SELECT.*?(?=\n\n|\n$|$)',
+            r'```sql\s*(.*?)\s*```',
+            r'```\s*(SELECT.*?)\s*```'
+        ]
+        
+        for pattern in sql_patterns:
+            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+            if match:
+                sql = match.group(1).strip()
+                if sql.upper().startswith('SELECT'):
+                    return sql
+        
+        # If no pattern matches, return the response as-is
+        return response.strip()
     
     def _clean_sql_query(self, sql_query: str) -> str:
         """Clean and validate the generated SQL query"""

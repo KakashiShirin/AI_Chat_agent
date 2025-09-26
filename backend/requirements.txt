@@ -8,12 +8,10 @@ psycopg2-binary>=2.9.0
 sqlalchemy>=2.0.0
 asyncpg>=0.28.0
 
-# AI and ML (lightweight for Vercel)
-# Using rule-based approach instead of heavy ML models
-# transformers>=4.30.0  # Removed for Vercel compatibility
-# torch>=2.6.0          # Removed for Vercel compatibility
-# tokenizers>=0.13.0    # Removed for Vercel compatibility
-# datasets>=2.12.0      # Removed for Vercel compatibility
+# AI and ML (hybrid approach for Vercel)
+huggingface_hub>=0.20.0
+# transformers>=4.30.0  # Optional for local models
+# torch>=2.6.0          # Optional for local models
 
 # Data processing
 pandas>=2.2.0

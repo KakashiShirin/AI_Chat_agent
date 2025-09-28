@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.models.database import get_db
 from app.services.data_processor import data_processor
 from app.services.ai_agent import ai_agent
+from app.services.chat_session_manager import chat_session_manager
 from app.core.config import settings
 
 router = APIRouter()
@@ -109,8 +110,8 @@ async def query_data(
         )
     
     try:
-        # Get AI analysis
-        result = ai_agent.get_answer(request.query, request.session_id)
+        # Get AI analysis with task breakdown for complex queries
+        result = ai_agent.get_answer_with_task_breakdown(request.query, request.session_id)
         return result
         
     except Exception as e:
@@ -183,3 +184,93 @@ async def validate_api_key(request: ApiKeyRequest):
 async def api_health_check():
     """API health check endpoint"""
     return {"status": "ok", "service": "ai-data-agent-api"}
+
+# Chat Session Management Endpoints
+
+class ChatRequest(BaseModel):
+    query: str
+    chat_id: str
+
+class CreateChatRequest(BaseModel):
+    database_session_id: str
+
+@router.post("/chat/create")
+async def create_chat_session(request: CreateChatRequest):
+    """Create a new chat session for a specific database session"""
+    try:
+        chat_id = chat_session_manager.create_chat_session(request.database_session_id)
+        return {
+            "chat_id": chat_id,
+            "database_session_id": request.database_session_id,
+            "message": "Chat session created successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating chat session: {str(e)}")
+
+@router.post("/chat/query")
+async def chat_query(request: ChatRequest):
+    """Process a query within a specific chat session context"""
+    try:
+        if not request.chat_id:
+            raise HTTPException(status_code=400, detail="Chat ID is required")
+        
+        if not request.query.strip():
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+        
+        # Process query with chat context
+        result = ai_agent.get_answer_with_chat_context(request.query, request.chat_id)
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing chat query: {str(e)}")
+
+@router.get("/chat/{chat_id}/context")
+async def get_chat_context(chat_id: str):
+    """Get the context of a specific chat session"""
+    try:
+        context = chat_session_manager.get_chat_context(chat_id)
+        if context is None:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        
+        return {
+            "chat_id": chat_id,
+            "context": context
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving chat context: {str(e)}")
+
+@router.get("/chat/sessions")
+async def get_chat_sessions():
+    """Get all active chat sessions"""
+    try:
+        stats = chat_session_manager.get_session_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving chat sessions: {str(e)}")
+
+@router.delete("/chat/{chat_id}")
+async def delete_chat_session(chat_id: str):
+    """Delete a specific chat session"""
+    try:
+        success = chat_session_manager.delete_chat_session(chat_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        
+        return {
+            "chat_id": chat_id,
+            "message": "Chat session deleted successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting chat session: {str(e)}")
+
+@router.post("/chat/cleanup")
+async def cleanup_expired_sessions():
+    """Clean up expired chat sessions"""
+    try:
+        cleaned_count = chat_session_manager.cleanup_expired_sessions()
+        return {
+            "cleaned_sessions": cleaned_count,
+            "message": f"Cleaned up {cleaned_count} expired sessions"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error cleaning up sessions: {str(e)}")

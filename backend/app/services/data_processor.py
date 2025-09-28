@@ -30,21 +30,30 @@ class DataProcessor:
     def infer_data_types(self, df: pd.DataFrame) -> pd.DataFrame:
         """Infer and convert data types for better analysis"""
         for column in df.columns:
-            # Try to convert to numeric first
+            # Skip if column name suggests it should be numeric
+            numeric_keywords = ['salary', 'experience', 'score', 'age', 'count', 'amount', 'price', 'value', 'number']
+            is_likely_numeric = any(keyword in column.lower() for keyword in numeric_keywords)
+            
+            if is_likely_numeric:
+                # Try to convert to numeric first for likely numeric columns
+                try:
+                    df[column] = pd.to_numeric(df[column])
+                    continue  # Skip datetime conversion for numeric columns
+                except (ValueError, TypeError):
+                    pass
+            
+            # Try to convert to numeric for other columns
             try:
                 df[column] = pd.to_numeric(df[column])
             except (ValueError, TypeError):
-                # If conversion fails, keep as original type
-                pass
+                # If conversion fails, try datetime only for non-numeric columns
+                try:
+                    df[column] = pd.to_datetime(df[column], format='mixed')
+                except (ValueError, TypeError):
+                    # If both fail, keep as original type
+                    pass
             
-            # Try to convert to datetime
-            try:
-                df[column] = pd.to_datetime(df[column], format='mixed')
-            except (ValueError, TypeError):
-                # If conversion fails, keep as original type
-                pass
-            
-            # Fill missing values with 'NA' for string columns
+            # Fill missing values
             if df[column].dtype == 'object':
                 df[column] = df[column].fillna('NA')
             else:
@@ -181,9 +190,23 @@ class DataProcessor:
                         for row in columns_result
                     ]
                     
+                    # Get sample data (first 5 rows)
+                    sample_query = text(f"SELECT * FROM {table_name} LIMIT 5")
+                    sample_result = connection.execute(sample_query)
+                    sample_data = []
+                    
+                    for row in sample_result:
+                        # Convert row to dictionary
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            column_name = columns[i]['name'] if i < len(columns) else f'column_{i}'
+                            row_dict[column_name] = value
+                        sample_data.append(row_dict)
+                    
                     schema_info[table_name] = {
                         "columns": columns,
-                        "table_name": table_name
+                        "table_name": table_name,
+                        "sample_data": sample_data
                     }
                 
                 return schema_info

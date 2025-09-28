@@ -10,6 +10,7 @@ app = FastAPI(
 
 # Configure CORS
 import os
+import logging
 
 # Get allowed origins from environment or use defaults
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
@@ -20,10 +21,17 @@ if os.getenv("ENVIRONMENT") == "production":
         "https://ai-data-agent-frontend-git-main.vercel.app",
         "https://csv-chat-agent.vercel.app",
         "https://csv-chat-agent-git-main.vercel.app",
+        "https://csvchatagent-p1jpqslns-primetrades-projects-4edfb7c9.vercel.app",  # Your specific domain
         "https://*.vercel.app",
         "https://*.netlify.app",
         "https://*.railway.app"
     ])
+
+# Log CORS configuration for debugging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info(f"[CORS] Environment: {os.getenv('ENVIRONMENT', 'development')}")
+logger.info(f"[CORS] Allowed origins: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,

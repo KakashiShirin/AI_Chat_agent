@@ -2,11 +2,17 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 import uuid
+from pydantic import BaseModel
 from app.models.database import get_db
 from app.services.data_processor import data_processor
+from app.services.ai_agent import ai_agent
 from app.core.config import settings
 
 router = APIRouter()
+
+class QueryRequest(BaseModel):
+    query: str
+    session_id: str
 
 @router.post("/upload")
 async def upload_file(
@@ -71,6 +77,59 @@ async def get_schema(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving schema: {str(e)}")
+
+@router.post("/query")
+async def query_data(
+    request: QueryRequest,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Process natural language query and return AI analysis
+    
+    Args:
+        request: Query request containing query and session_id
+        db: Database session
+        
+    Returns:
+        AI analysis with answer, explanation, and visualization suggestions
+    """
+    if not request.query.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Query cannot be empty"
+        )
+    
+    if not request.session_id.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Session ID cannot be empty"
+        )
+    
+    try:
+        # Get AI analysis
+        result = ai_agent.get_answer(request.query, request.session_id)
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
+@router.get("/credits")
+async def get_credit_usage():
+    """Get current credit usage statistics"""
+    try:
+        usage = ai_agent.get_credit_usage()
+        return usage
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving credit usage: {str(e)}")
+
+@router.post("/credits/reset")
+async def reset_credit_tracking():
+    """Reset credit tracking counters"""
+    try:
+        ai_agent.reset_credit_tracking()
+        return {"message": "Credit tracking reset successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error resetting credit tracking: {str(e)}")
 
 @router.get("/health")
 async def api_health_check():

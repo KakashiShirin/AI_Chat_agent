@@ -13,6 +13,9 @@ class Settings:
     # Hugging Face API settings
     HUGGINGFACE_API_KEY: str = os.getenv("HUGGINGFACE_API_KEY", "")
     
+    # Google Gemini API settings
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    
     # Application settings
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     

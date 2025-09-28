@@ -1,113 +1,192 @@
-Of course. As the Product Manager for this project, I have synthesized the information from the product brief into a formal Product Requirements Document (PRD). This document will serve as our guiding charter for development.
+Of course. Here is a comprehensive Product Requirements Document (PRD) tailored for an AI coding assistant like Cursor. It outlines the entire project in a modular, phased approach, providing detailed steps for development.
 
-***
+-----
 
-## Product Requirements Document (PRD): AI Data Agent
+### **Product Requirements Document: AI Data Agent MVP**
 
-**Version:** 1.0  
-**Date:** September 26, 2025  
-**Author:** BMad Agent (Product Manager)  
-**Status:** In Review
+#### **1. Introduction & Vision**
 
-### 1. Introduction & Vision
+**Product:** AI Data Agent
+**Vision:** To build a conversational AI platform that empowers non-technical users to upload raw data files (Excel, CSV) and gain deep insights by asking complex business questions in natural language. The system will provide answers through a combination of textual analysis and relevant data visualizations.
 
-This document outlines the requirements for the **AI Data Agent**, an intelligent conversational interface for business intelligence.
+#### **2. The Problem & Target Audience**
 
-The vision is to create an AI agent that empowers any user, regardless of technical skill, to ask complex analytical questions of a SQL database in plain English. The agent will deliver accurate, easy-to-understand answers, not as raw data, but as a synthesized natural language summary accompanied by relevant, auto-generated charts and tables.
+**Problem:** Huge amounts of valuable data are locked away in spreadsheets. Business users who are not proficient in SQL, Python, or data analysis tools struggle to extract timely and complex insights. They need a tool that understands their business questions and handles imperfect, real-world data without manual cleaning and coding.
 
-### 2. Problem Statement
+**Target Audience:** Business analysts, marketing managers, operations staff, and any non-technical professional who needs to make data-driven decisions.
 
-Business users and analysts often struggle to get quick, insightful answers from complex and imperfect databases. They face significant challenges with "dirty" data, poorly designed schemas, and the technical barrier of writing complex SQL queries. This creates a bottleneck that slows down critical decision-making processes. Our AI Data Agent aims to eliminate this friction.
+#### **3. High-Level Requirements & Epics**
 
-### 3. Target Audience
+This project is broken down into four main epics:
 
-* **Primary Audience**: The evaluation team for the SDE Hiring Assignment at "bulba.app".
-* **Secondary Audience**: Non-technical business users, analysts, and decision-makers who need to derive insights from data without writing code.
+  * **Epic 1: Data Ingestion & Processing Pipeline:** The system must accept user-uploaded files, process them, and store them in a structured, queryable format.
+  * **Epic 2: Core AI Analysis Engine:** The system's brain. It must be able to translate a natural language question into an executable analysis plan, run it against the user's data, and generate a result.
+  * **Epic 3: Conversational Frontend Interface:** The user's window into the platform. It must provide a seamless, intuitive chat-based experience for uploading files, asking questions, and viewing results.
+  * **Epic 4: Deployment & Integration:** The entire system must be packaged and deployed to a live, accessible environment on Vercel.
 
-### 4. Features & Functional Requirements
+-----
 
-#### 4.1. Core Feature: Conversational BI Agent
-The agent is the core of the product. It must be able to process a user's natural language question and return a complete, multi-faceted answer.
+### **4. Detailed Phased Development Plan**
 
-* **FR-1: Natural Language Question Input**: The system shall provide a chat-like interface where users can input questions in plain English.
-* **FR-2: Vague Question Interpretation**: The backend agent must be able to parse and understand the intent behind "vague questions".
-* **FR-3: Intelligent SQL Query Generation**: The agent will translate the user's question into an accurate and efficient SQL query.
-* **FR-4: Natural Language Summarization**: The agent will process the raw SQL results and generate a concise, human-readable summary of the key insights.
-* **FR-5: Dynamic Visualization Generation**: The agent will automatically select and generate appropriate charts (e.g., bar, line) and/or tables to visually represent the data.
-* **FR-6: Unified Response Delivery**: The frontend will render the complete response in a single, coherent view, displaying the natural language summary, charts, and tables together.
+Your task is to build the application following these modular phases.
 
-#### 4.2. User Stories
-* **As a Business Analyst**, I want to ask "Which advisors have the most students failing their courses?" so that I can identify areas for student support.
-* **As a Department Head**, I want to ask "What are the most popular courses among students with a GPA below 3.0?" so that I can understand curriculum engagement for at-risk students.
-* **As a non-technical user**, I want to receive my answer with a simple chart and a one-sentence summary so that I can quickly understand the key takeaway.
+#### **Phase 1: Backend Foundation & Data Pipeline (Epic 1)**
 
-Of course. Switching to a business-focused dataset is a great idea to make the project even more relevant to a real-world scenario.
+**Goal:** Create a robust backend service that can accept an Excel/CSV file, clean it, and store its contents in a PostgreSQL database.
 
-Based on that, I recommend we use the **Brazilian E-Commerce Public Dataset by Olist**. It's a fantastic, real-world dataset available on Kaggle that perfectly fits our needs.
+**Suggested Project Structure (Backend):**
 
-### **Why the Olist E-commerce Dataset?**
-* **Business-Relevant**: It contains a rich collection of real e-commerce transactions, covering everything from order placement and payment to shipping and customer reviews. This allows for very realistic and complex business questions.
-* **Complex Schema**: The dataset is spread across **9 different tables**, requiring complex `JOIN`s to answer meaningful questions. This directly addresses the "Very complex database" challenge.
-* **Real-World "Dirty" Data**: It contains the kind of data quality issues you'd expect in a real business environment: missing timestamps, varied data formats, and occasional inconsistencies.
+```
+/backend
+|-- /app
+|   |-- /api
+|   |   |-- __init__.py
+|   |   |-- endpoints.py      # FastAPI routes (e.g., /upload, /query)
+|   |-- /core
+|   |   |-- __init__.py
+|   |   |-- config.py         # Environment variables (DB_URL, HUGGINGFACE_KEY)
+|   |-- /services
+|   |   |-- __init__.py
+|   |   |-- data_processor.py # Logic for cleaning & storing data
+|   |   |-- ai_agent.py       # (To be built in Phase 2)
+|   |-- /models
+|   |   |-- __init__.py
+|   |   |-- database.py       # SQLAlchemy setup and session management
+|   |-- main.py               # FastAPI app entry point
+|-- requirements.txt
+|-- Dockerfile
+```
 
----
+**Step-by-Step Implementation:**
 
-**5. Technical Stack & Components**
-*(No changes to this section)*
+1.  **Setup FastAPI Application (`/app/main.py`, `/app/api/endpoints.py`):**
 
-* **Frontend**: ReactJS
-* **Frontend Visualization Library**: Recharts
-* **Backend**: Python with FastAPI
-* **Database**: PostgreSQL
-* **Core AI Model**: A T5-based Text-to-SQL model from Hugging Face Transformers
-* **Data Analysis (Initial Setup)**: Pandas and pandas-profiling
-* **Deployment Platform**: Vercel
+      * Initialize a FastAPI application.
+      * Create a `/health` endpoint that returns `{"status": "ok"}`.
+      * Create a `/api/v1/upload` endpoint that accepts a file upload (`UploadFile`). This endpoint will be a POST request.
 
-**6. Database Source, Setup, and Schema (Revised)**
+2.  **Implement Database Connection (`/app/models/database.py`):**
 
-#### **6.1. Data Source**
-To simulate a complex and realistic business environment, the project will use the **Brazilian E-Commerce Public Dataset by Olist**, available on Kaggle.
+      * Use SQLAlchemy to define the database engine and session maker.
+      * Connect to your Neon PostgreSQL database using the connection string from your environment variables (use `python-dotenv` for local development).
 
-#### **6.2. Database Setup**
-1.  Install a local instance of PostgreSQL.
-2.  Create a dedicated database for the project.
-3.  Download the 9 CSV files from the Olist dataset.
-4.  Import each CSV file as a separate table into the PostgreSQL database.
+3.  **Build the Data Processing Service (`/app/services/data_processor.py`):**
 
-#### **6.3. Anticipated Schema**
-The database will contain the following inter-related tables. The agent's primary challenge will be to understand and navigate these relationships to answer questions.
+      * Create a function `process_and_store_file(file: UploadFile, session_id: str)`.
+      * **Ingestion:** Use `pandas.read_excel()` or `pandas.read_csv()` to load the file's contents into a DataFrame. Handle multiple sheets in Excel files by processing them individually or merging them.
+      * **Cleaning (Data Resilience):**
+          * Sanitize column names (remove special characters, replace spaces with underscores).
+          * Infer data types for each column (`pd.to_numeric`, `pd.to_datetime`, etc.).
+          * Implement a strategy for handling missing values (e.g., fill with a placeholder like 'NA').
+      * **Storage:**
+          * Dynamically generate a unique table name for the uploaded data (e.g., `data_{session_id}_{sheet_name}`).
+          * Use `DataFrame.to_sql()` with the SQLAlchemy engine to write the cleaned data to the new table in your PostgreSQL database.
+          * Return metadata about the stored tables (table names, column names, data types).
 
-* `olist_customers_dataset`: Contains customer identifiers and location data.
-* `olist_geolocation_dataset`: Contains Brazilian zip code and lat/long coordinates.
-* `olist_order_items_dataset`: Contains data about the items purchased in each order.
-* `olist_order_payments_dataset`: Contains data about the payment options for orders.
-* `olist_order_reviews_dataset`: Contains customer reviews for orders.
-* `olist_orders_dataset`: The core dataset with information about each order.
-* `olist_products_dataset`: Contains data about the products sold by Olist.
-* `olist_sellers_dataset`: Contains data about the sellers on Olist.
-* `product_category_name_translation`: Translates product category names to English.
+4.  **Connect Endpoint to Service (`/app/api/endpoints.py`):**
 
-This new dataset will allow us to ask much more interesting business questions, such as:
-* "What are the top 5 product categories by revenue in the Southeast region?"
-* "Which sellers have the highest average review scores for orders with late deliveries?"
-* "What is the average shipping time for customers in São Paulo vs. Rio de Janeiro?"
+      * In the `/upload` endpoint, generate a unique session ID.
+      * Call the `process_and_store_file` function from the Data Processing Service.
+      * Return the session ID and the data schema metadata to the client as a JSON response.
 
+#### **Phase 2: Core AI Analysis Engine (Epic 2)**
 
-### 7. AI Model Implementation
+**Goal:** Create the service that generates and executes Python code to answer user questions.
 
-The core of the agent's intelligence will be driven by a pre-trained Large Language Model.
+**Step-by-Step Implementation (`/app/services/ai_agent.py`):**
 
-* **Model**: We will start with a T5 (Text-to-Text Transfer Transformer) model fine-tuned for Text-to-SQL tasks, such as `t5-base-finetuned-wikiSQL`.
-* **Integration**: The model will be loaded into the FastAPI backend using the Hugging Face Transformers library. An abstraction layer will be created that takes a user's question and the database schema as input, and outputs a SQL query.
+1.  **Setup Hugging Face API Client:**
 
-### 8. Out of Scope
+      * Create a function to securely call the Hugging Face Inference API. It should take a `prompt` and return the model's text generation. Store your API key in environment variables.
 
-To ensure focus and timely completion, the following features are explicitly out of scope for this version:
-* User authentication and accounts.
-* Conversation history.
-* Real-time database updates or write operations.
-* Agent fine-tuning or retraining capabilities.
+2.  **Implement the `get_answer(query: str, session_id: str)` function:**
 
-### 9. Success Metrics
+      * **Schema Retrieval:** Query the database to get the table names and schemas associated with the `session_id`.
+      * **Prompt Engineering:** Create a `generate_pandas_prompt` function. This is critical. The prompt must include:
+          * **Context:** "You are an expert Python data analyst."
+          * **Data Schema:** "You are working with the following tables and columns: {schema\_info}."
+          * **Task:** "The user's question is: '{query}'."
+          * **Instructions:** "Write a single, executable Python script using the pandas library to answer this question. Load the data from the SQL database into a pandas DataFrame. Print only the final result (e.g., a number, a list, or a JSON representation of a DataFrame)."
+      * **API Call:** Send the generated prompt to the Hugging Face API (`Mixtral` or `CodeLlama`).
+      * **Secure Code Execution:**
+          * Receive the Python code as a string from the API.
+          * **CRITICAL:** Create a sandboxed environment to execute this code. Use a library like `RestrictedPython` or a carefully configured `exec` scope that only has access to necessary libraries (`pandas`, `sqlalchemy`) and the database connection. **Do not run `exec()` on untrusted code in an open environment.**
+          * Capture the `stdout` (the printed result) from the execution.
+      * **Result Synthesis:**
+          * Take the raw output from the executed code.
+          * Create a second prompt: `generate_synthesis_prompt`. This prompt includes the original question and the raw data result. The instruction is: "Given the user's question '{query}' and the resulting data '{data}', formulate a friendly, natural language answer. Also, suggest a suitable chart type ('bar', 'pie', 'line', 'table') for this data."
+          * Call the Hugging Face API again with this synthesis prompt.
+      * **Return:** Parse the final response and return a JSON object containing the natural language answer and the suggested visualization data.
 
-The primary success metric is the **quality and accuracy of the agent's responses**. This will be evaluated based on its ability to consistently provide accurate, insightful, and well-visualized answers to extremely complicated analytical questions posed in natural language.
+3.  **Create Endpoint (`/app/api/endpoints.py`):**
+
+      * Create a `/api/v1/query` POST endpoint that accepts a `query` and a `session_id`.
+      * Call the `ai_agent.get_answer` function and return its JSON response.
+
+#### **Phase 3: Conversational Frontend Interface (Epic 3)**
+
+**Goal:** Build the React-based user interface.
+
+**Suggested Project Structure (Frontend):**
+
+```
+/frontend
+|-- /src
+|   |-- /components
+|   |   |-- ChatWindow.js
+|   |   |-- Message.js
+|   |   |-- UploadButton.js
+|   |   |-- ChartRenderer.js
+|   |-- /hooks
+|   |   |-- useChat.js        # Logic for managing conversation state
+|   |-- App.js
+|   |-- index.js
+```
+
+**Step-by-Step Implementation:**
+
+1.  **Setup UI:**
+
+      * Create a main layout in `App.js` with a file upload area and a chat interface.
+      * Use a UI component library like Material-UI or Ant Design for a modern look.
+
+2.  **File Upload (`/components/UploadButton.js`):**
+
+      * Create a component that allows users to select a file.
+      * On file selection, make a `POST` request to the `/api/v1/upload` backend endpoint.
+      * On a successful response, store the returned `session_id` in the application's state.
+
+3.  **Chat Interface (`/hooks/useChat.js`, `/components/ChatWindow.js`):**
+
+      * Manage the conversation history in a state hook (e.g., `useState`).
+      * When a user sends a message, add it to the history and make a `POST` request to the `/api/v1/query` endpoint, sending the message and the current `session_id`.
+      * Display a loading indicator while waiting for the backend response.
+      * When the response is received, add the AI's message to the chat history.
+
+4.  **Render Visualizations (`/components/ChartRenderer.js`):**
+
+      * Create a component that takes the visualization data from the AI's response.
+      * Use a library like `Recharts` or `Chart.js`.
+      * Conditionally render the correct chart type (`bar`, `pie`, etc.) based on the AI's suggestion.
+
+#### **Phase 4: Deployment & Integration (Epic 4)**
+
+**Goal:** Deploy the full-stack application to Vercel.
+
+1.  **Configure Vercel Project:**
+
+      * Create a new Vercel project and link it to your GitHub repository.
+      * Configure the project as a monorepo, with separate build commands and output directories for the frontend and backend.
+      * Vercel will automatically detect the FastAPI backend and deploy it as serverless functions.
+
+2.  **Environment Variables:**
+
+      * In the Vercel project settings, add your `DATABASE_URL` and `HUGGINGFACE_API_KEY` as environment variables.
+
+3.  **CORS:**
+
+      * In your FastAPI application (`/app/main.py`), configure CORS middleware to allow requests from your Vercel frontend domain.
+
+4.  **Test:**
+
+      * Deploy the application and perform end-to-end testing to ensure the frontend can communicate with the backend and the entire data analysis pipeline works as expected.

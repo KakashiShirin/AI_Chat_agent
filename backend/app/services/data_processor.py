@@ -149,7 +149,8 @@ class DataProcessor:
         """Get schema information for all tables in a session"""
         try:
             with self.engine.connect() as connection:
-                # Find all tables for this session
+                # Find all tables for this session (convert hyphens to underscores)
+                session_pattern = session_id.replace('-', '_')
                 query = text("""
                     SELECT table_name 
                     FROM information_schema.tables 
@@ -157,7 +158,7 @@ class DataProcessor:
                     AND table_name LIKE :pattern
                 """)
                 
-                result = connection.execute(query, {"pattern": f"data_{session_id}%"})
+                result = connection.execute(query, {"pattern": f"data_{session_pattern}%"})
                 tables = [row[0] for row in result]
                 
                 schema_info = {}

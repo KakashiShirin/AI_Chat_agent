@@ -65,7 +65,7 @@ const Chart: React.FC<ChartProps> = ({ chartType, chartData }) => {
   }
 
   const renderChart = () => {
-    processedData = processChartData(chartData)
+    processedData = processChartData(chartData) as any[] | null
     
     if (!processedData) {
       return (
@@ -321,7 +321,7 @@ const Chart: React.FC<ChartProps> = ({ chartType, chartData }) => {
           </div>
           <div className="flex items-center space-x-2">
             <div className="text-xs text-gray-600 bg-white px-2 py-1 rounded-full border">
-              {Array.isArray(processedData) ? processedData.length : 0} data points
+              {processedData && Array.isArray(processedData) ? (processedData as any[]).length : 0} data points
             </div>
             <div className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
               Interactive

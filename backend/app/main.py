@@ -9,9 +9,21 @@ app = FastAPI(
 )
 
 # Configure CORS
+import os
+
+# Get allowed origins from environment or use defaults
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+if os.getenv("ENVIRONMENT") == "production":
+    # Add common production domains
+    allowed_origins.extend([
+        "https://*.vercel.app",
+        "https://*.netlify.app",
+        "https://*.railway.app"
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

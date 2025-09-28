@@ -1,17 +1,19 @@
 import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X, Key, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiService } from '../services/api'
 
 interface FileUploadProps {
   onUploadSuccess: (sessionId: string) => void
+  onNavigateToApiKeys: () => void
   isConnected: boolean
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess, isConnected }) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess, onNavigateToApiKeys, isConnected }) => {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [showApiKeyInfo, setShowApiKeyInfo] = useState(false)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
@@ -39,6 +41,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess, isConnected })
       const response = await apiService.uploadFile(uploadedFile)
       
       toast.success(`File uploaded successfully! ${response.tables_created} table(s) created.`)
+      
+      // Show API key information popup after successful upload
+      setShowApiKeyInfo(true)
+      
       onUploadSuccess(response.session_id)
       
     } catch (error: any) {
@@ -59,97 +65,105 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess, isConnected })
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="card">
-        <div className="text-center mb-6">
-          <Upload className="w-16 h-16 text-primary-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Data</h2>
-          <p className="text-gray-600">
-            Upload CSV or Excel files to start analyzing your data with AI
-          </p>
-        </div>
-
-        {/* Dropzone */}
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* Consolidated Upload Interface */}
+      <div className="card-elevated">
+        {/* Clickable Animated Header */}
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors duration-200 ${
+          className={`text-center cursor-pointer transition-all duration-300 ${
             isDragActive
-              ? 'border-primary-500 bg-primary-50'
-              : uploadedFile
-              ? 'border-green-500 bg-green-50'
-              : 'border-gray-300 hover:border-gray-400'
+              ? 'scale-105'
+              : 'hover:scale-102'
           } ${!isConnected || isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <input {...getInputProps()} />
           
+          <div className={`w-24 h-24 mx-auto mb-6 rounded-3xl flex items-center justify-center animate-float ${
+            uploadedFile 
+              ? 'bg-gradient-success' 
+              : isDragActive 
+                ? 'bg-gradient-primary scale-110' 
+                : 'bg-gradient-primary'
+          }`}>
+            {uploadedFile ? (
+              <CheckCircle className="w-12 h-12 text-white" />
+            ) : (
+              <Upload className="w-12 h-12 text-white" />
+            )}
+          </div>
+          
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Upload Your Data</h2>
+          <p className="text-gray-600 text-lg mb-2">
+            Upload CSV or Excel files to start analyzing your data with AI
+          </p>
+          
           {uploadedFile ? (
-            <div className="space-y-4">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
+            <div className="space-y-4 animate-scale-in">
               <div>
-                <p className="text-lg font-medium text-gray-900">{uploadedFile.name}</p>
-                <p className="text-sm text-gray-500">{formatFileSize(uploadedFile.size)}</p>
+                <p className="text-xl font-semibold text-gray-900">{uploadedFile.name}</p>
+                <p className="text-sm text-gray-500 mt-1">{formatFileSize(uploadedFile.size)}</p>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 bg-gray-100 px-4 py-2 rounded-lg inline-block">
                 Click to upload a different file
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto" />
-              <div>
-                <p className="text-lg font-medium text-gray-900">
-                  {isDragActive ? 'Drop the file here' : 'Drag & drop your file here'}
+              <p className="text-lg text-gray-700">
+                {isDragActive ? 'Drop the file here' : 'Click here or drag & drop your file'}
+              </p>
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 max-w-md mx-auto">
+                <p className="text-sm text-blue-700 font-medium">
+                  Supports CSV, XLS, XLSX files up to 10MB
                 </p>
-                <p className="text-sm text-gray-500">or click to browse</p>
-              </div>
-              <div className="text-xs text-gray-400">
-                Supports CSV, XLS, XLSX files up to 10MB
               </div>
             </div>
           )}
         </div>
 
-        {/* File Info */}
-        {uploadedFile && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <FileText className="w-5 h-5 text-gray-500" />
-                <div>
-                  <p className="font-medium text-gray-900">{uploadedFile.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {formatFileSize(uploadedFile.size)} • {uploadedFile.type || 'Unknown type'}
-                  </p>
-                </div>
-              </div>
-              
-              <button
-                onClick={() => setUploadedFile(null)}
-                className="text-gray-400 hover:text-gray-600"
-                disabled={isUploading}
-              >
-                <AlertCircle className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
+        {/* File Requirements */}
+        <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+          <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
+            <FileText className="w-5 h-5 mr-2" />
+            File Requirements
+          </h3>
+          <ul className="text-sm text-blue-800 space-y-2">
+            <li className="flex items-center">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+              Supported formats: CSV, XLS, XLSX
+            </li>
+            <li className="flex items-center">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+              Maximum file size: 10MB
+            </li>
+            <li className="flex items-center">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+              First row should contain column headers
+            </li>
+            <li className="flex items-center">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+              Data should be in tabular format
+            </li>
+          </ul>
+        </div>
 
         {/* Upload Button */}
         {uploadedFile && (
-          <div className="mt-6 text-center">
+          <div className="text-center mt-8">
             <button
               onClick={handleUpload}
               disabled={!isConnected || isUploading}
-              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-success disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 text-lg"
             >
               {isUploading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  <Loader2 className="w-5 h-5 animate-spin mr-3" />
                   Uploading...
                 </>
               ) : (
                 <>
-                  <Upload className="w-4 h-4 mr-2" />
+                  <Upload className="w-5 h-5 mr-3" />
                   Upload & Analyze
                 </>
               )}
@@ -159,27 +173,93 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess, isConnected })
 
         {/* Connection Status */}
         {!isConnected && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center space-x-2 text-red-800">
-              <AlertCircle className="w-4 h-4" />
+          <div className="mt-6 p-4 bg-error-50 border border-error-200 rounded-xl">
+            <div className="flex items-center space-x-2 text-error-800">
+              <AlertCircle className="w-5 h-5" />
               <span className="text-sm font-medium">Backend connection lost</span>
             </div>
-            <p className="text-sm text-red-600 mt-1">
+            <p className="text-sm text-error-700 mt-1">
               Please check your backend server and try again.
             </p>
           </div>
         )}
 
-        {/* Instructions */}
-        <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-          <h3 className="font-medium text-blue-900 mb-2">File Requirements:</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Supported formats: CSV, XLS, XLSX</li>
-            <li>• Maximum file size: 10MB</li>
-            <li>• First row should contain column headers</li>
-            <li>• Data should be in tabular format</li>
-          </ul>
-        </div>
+        {/* API Key Information Popup */}
+        {showApiKeyInfo && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 animate-scale-in">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">API Key Information</h3>
+                    <p className="text-sm text-gray-500">Get started with data analysis</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowApiKeyInfo(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="space-y-4">
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                  <div className="flex items-start space-x-3">
+                    <Key className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-blue-900 mb-1">Use Your Own API Key</h4>
+                      <p className="text-sm text-blue-700">
+                        For unlimited usage, add your Gemini API key in the API Keys section.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+                  <div className="flex items-start space-x-3">
+                    <Sparkles className="w-5 h-5 text-green-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-green-900 mb-1">Free Trial Available</h4>
+                      <p className="text-sm text-green-700">
+                        You can explore the platform with our demo API key for testing purposes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                  <p className="font-medium mb-1">💡 Pro Tip:</p>
+                  <p>Add your API key for unlimited queries and better performance. The demo key has usage limits.</p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowApiKeyInfo(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Got it
+                </button>
+                <button
+                  onClick={() => {
+                    setShowApiKeyInfo(false)
+                    onNavigateToApiKeys()
+                  }}
+                  className="px-4 py-2 bg-gradient-primary text-white text-sm font-medium rounded-lg hover:shadow-lg transition-all duration-200"
+                >
+                  Add API Key
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

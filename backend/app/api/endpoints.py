@@ -274,3 +274,56 @@ async def cleanup_expired_sessions():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error cleaning up sessions: {str(e)}")
+
+@router.post("/cleanup/all")
+async def clear_all_data(db: Session = Depends(get_db)):
+    """Clear all data including sessions, uploaded data, and analysis history"""
+    try:
+        # Clear all chat sessions
+        chat_sessions_cleared = chat_session_manager.clear_all_sessions()
+        
+        # Clear all uploaded data and database sessions
+        data_sessions_cleared = data_processor.clear_all_data()
+        
+        # Reset AI agent state
+        ai_agent.reset_credit_tracking()
+        
+        return {
+            "message": "All data cleared successfully",
+            "cleared_sessions": chat_sessions_cleared + data_sessions_cleared,
+            "cleared_data": data_sessions_cleared
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing all data: {str(e)}")
+
+@router.get("/model/status")
+async def get_model_status():
+    """Get current AI model status and configuration"""
+    try:
+        return {
+            "current_model": ai_agent.current_model_name,
+            "primary_model": ai_agent.primary_model_name,
+            "fallback_model": ai_agent.fallback_model_name,
+            "tertiary_model": ai_agent.tertiary_model_name,
+            "is_using_fallback": ai_agent.current_model_name != ai_agent.primary_model_name,
+            "model_tier": "pro" if ai_agent.current_model_name == ai_agent.primary_model_name else 
+                         "flash" if ai_agent.current_model_name == ai_agent.fallback_model_name else "flash-lite",
+            "api_keys_count": len(ai_agent.gemini_api_keys),
+            "total_calls": ai_agent.api_call_count,
+            "total_tokens": ai_agent.total_tokens_used
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting model status: {str(e)}")
+
+@router.post("/model/reset")
+async def reset_to_primary_model():
+    """Reset AI model to primary model (Gemini 2.5 Pro)"""
+    try:
+        ai_agent.reset_to_primary_model()
+        return {
+            "message": "Model reset to primary model",
+            "current_model": ai_agent.current_model_name,
+            "primary_model": ai_agent.primary_model_name
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error resetting model: {str(e)}")

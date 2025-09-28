@@ -213,6 +213,30 @@ class DataProcessor:
                 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error retrieving schema: {str(e)}")
+    
+    def clear_all_data(self) -> int:
+        """Clear all uploaded data and database sessions"""
+        try:
+            # Get all table names
+            with self.engine.connect() as conn:
+                # Get all tables
+                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"))
+                tables = [row[0] for row in result.fetchall()]
+                
+                logger.info(f"[DELETE] Found {len(tables)} tables to clear: {tables}")
+                
+                # Drop all tables
+                for table_name in tables:
+                    logger.info(f"[DELETE] Dropping table: {table_name}")
+                    conn.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+                
+                conn.commit()
+                logger.info(f"[DELETE] Successfully cleared {len(tables)} tables")
+                
+            return len(tables)
+        except Exception as e:
+            logger.error(f"❌ Error clearing all data: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error clearing all data: {str(e)}")
 
 # Create global instance
 data_processor = DataProcessor()

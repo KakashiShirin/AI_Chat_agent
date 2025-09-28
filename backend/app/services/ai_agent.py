@@ -14,6 +14,11 @@ from app.services.chat_session_manager import chat_session_manager
 from sqlalchemy import text
 import pandas as pd
 
+# Configure matplotlib to prevent popup windows
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+
 # Set up enhanced logging
 import logging
 from enhanced_logging import setup_enhanced_logging, log_query_start, log_query_end, log_api_call, log_code_execution
@@ -29,7 +34,10 @@ class AIAgent:
         # Multi-Gemini API system
         self.gemini_api_keys = []
         self.current_api_index = 0
-        self.gemini_model_name = 'gemini-2.0-flash'
+        self.primary_model_name = 'gemini-2.5-pro'           # Gemini 2.5 Pro (most advanced)
+        self.fallback_model_name = 'gemini-2.5-flash'        # Gemini 2.5 Flash (price-performance)
+        self.tertiary_model_name = 'gemini-2.5-flash-lite'   # Gemini 2.5 Flash-Lite (cost-efficient)
+        self.current_model_name = self.primary_model_name
         self.env_api_key = None  # Store environment API key separately
         
         # Initialize with default API key from environment if available
@@ -38,8 +46,8 @@ class AIAgent:
             self.env_api_key = default_key.strip()
             self.gemini_api_keys.append(self.env_api_key)
             genai.configure(api_key=self.env_api_key)
-            self.gemini_model = genai.GenerativeModel(self.gemini_model_name)
-            logger.info(f"Initialized with environment API key (total keys: {len(self.gemini_api_keys)})")
+            self.gemini_model = genai.GenerativeModel(self.current_model_name)
+            logger.info(f"Initialized with environment API key using {self.current_model_name} (total keys: {len(self.gemini_api_keys)})")
         else:
             logger.warning("No GEMINI_API_KEY found in environment variables")
         
@@ -78,7 +86,7 @@ class AIAgent:
             
             # Test the API key first
             genai.configure(api_key=api_key)
-            test_model = genai.GenerativeModel(self.gemini_model_name)
+            test_model = genai.GenerativeModel(self.current_model_name)
             test_response = test_model.generate_content("test")
             
             # If successful, add to pool
@@ -141,9 +149,9 @@ class AIAgent:
             
             # Configure Gemini with the specific API key
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(self.gemini_model_name)
+            model = genai.GenerativeModel(self.current_model_name)
             
-            logger.info(f"🤖 Calling Gemini model: {self.gemini_model_name}")
+            logger.info(f"🤖 Calling Gemini model: {self.current_model_name}")
             response = model.generate_content(prompt)
             result = response.text
             
@@ -170,15 +178,15 @@ class AIAgent:
                 end = result.find("```", start)
                 if end != -1:
                     result = result[start:end].strip()
-                    logger.info(f"🔧 Extracted Python code from markdown block (length: {len(result)} chars)")
+                    logger.info(f"[CODE] Extracted Python code from markdown block (length: {len(result)} chars)")
             elif "```" in result:
                 start = result.find("```") + 3
                 end = result.find("```", start)
                 if end != -1:
                     result = result[start:end].strip()
-                    logger.info(f"🔧 Extracted code from markdown block (length: {len(result)} chars)")
+                    logger.info(f"[CODE] Extracted code from markdown block (length: {len(result)} chars)")
             
-            logger.info(f"✅ Gemini API call successful")
+            logger.info(f"[SUCCESS] Gemini API call successful")
             return result
             
         except Exception as e:
@@ -186,8 +194,57 @@ class AIAgent:
             # Sanitize API key from error messages
             if api_key and api_key in error_msg:
                 error_msg = error_msg.replace(api_key, "***API_KEY***")
-            logger.error(f"Gemini API call failed: {error_msg}")
-            raise Exception(f"Gemini API error: {error_msg}")
+            
+            # Check if it's a rate limit or quota exceeded error
+            if self._is_model_limit_error(error_msg):
+                logger.warning(f"Model limit exceeded for {self.current_model_name}: {error_msg}")
+                if self._switch_to_fallback_model():
+                    logger.info(f"Switched to fallback model: {self.current_model_name}")
+                    # Retry with fallback model
+                    try:
+                        model = genai.GenerativeModel(self.current_model_name)
+                        logger.info(f"🤖 Retrying with fallback model: {self.current_model_name}")
+                        response = model.generate_content(prompt)
+                        result = response.text
+                        
+                        # Update usage tracking
+                        self.api_call_count += 1
+                        self.api_key_usage[api_key]['calls_made'] += 1
+                        self.api_key_usage[api_key]['last_used'] = time.time()
+                        
+                        # Log token usage if available
+                        if hasattr(response, 'usage_metadata'):
+                            tokens = response.usage_metadata.total_token_count
+                            self.total_tokens_used += tokens
+                            self.api_key_usage[api_key]['tokens_used'] += tokens
+                            logger.info(f"💰 Token usage: {tokens} tokens (total: {self.total_tokens_used})")
+                        
+                        # Extract code from markdown code blocks if present
+                        original_result = result
+                        if "```python" in result:
+                            start = result.find("```python") + 9
+                            end = result.find("```", start)
+                            if end != -1:
+                                result = result[start:end].strip()
+                                logger.info(f"[CODE] Extracted Python code from markdown block (length: {len(result)} chars)")
+                        elif "```" in result:
+                            start = result.find("```") + 3
+                            end = result.find("```", start)
+                            if end != -1:
+                                result = result[start:end].strip()
+                                logger.info(f"[CODE] Extracted code from markdown block (length: {len(result)} chars)")
+                        
+                        logger.info(f"[SUCCESS] Gemini API call successful with fallback model")
+                        return result
+                    except Exception as retry_error:
+                        logger.error(f"Fallback model also failed: {str(retry_error)}")
+                        raise Exception(f"Both primary and fallback models failed. Last error: {str(retry_error)}")
+                else:
+                    logger.error(f"No fallback model available")
+                    raise Exception(f"Model limit exceeded and no fallback available: {error_msg}")
+            else:
+                logger.error(f"Gemini API call failed: {error_msg}")
+                raise Exception(f"Gemini API error: {error_msg}")
     
     def _call_llm_api(self, prompt: str) -> str:
         """Call LLM API with multi-Gemini fallback system"""
@@ -220,6 +277,42 @@ class AIAgent:
             if api_key and api_key in final_error_msg:
                 final_error_msg = final_error_msg.replace(api_key, "***API_KEY***")
         raise Exception(f"All Gemini API keys failed. Last error: {final_error_msg}")
+    
+    def _is_model_limit_error(self, error_msg: str) -> bool:
+        """Check if the error indicates model limits are exceeded"""
+        limit_indicators = [
+            'quota exceeded',
+            'rate limit',
+            'limit exceeded',
+            'too many requests',
+            'quota_exceeded',
+            'rate_limit_exceeded',
+            'model not available',
+            'model unavailable',
+            'resource_exhausted'
+        ]
+        error_lower = error_msg.lower()
+        return any(indicator in error_lower for indicator in limit_indicators)
+    
+    def _switch_to_fallback_model(self) -> bool:
+        """Switch to next available model in priority order"""
+        if self.current_model_name == self.primary_model_name:
+            # Switch from Pro to Flash
+            self.current_model_name = self.fallback_model_name
+            logger.info(f"[PROCESSING] Switched from {self.primary_model_name} to {self.fallback_model_name}")
+            return True
+        elif self.current_model_name == self.fallback_model_name:
+            # Switch from Flash to Flash-Lite
+            self.current_model_name = self.tertiary_model_name
+            logger.info(f"[PROCESSING] Switched from {self.fallback_model_name} to {self.tertiary_model_name}")
+            return True
+        return False
+    
+    def reset_to_primary_model(self) -> None:
+        """Reset to primary model (useful for testing or manual override)"""
+        if self.current_model_name != self.primary_model_name:
+            self.current_model_name = self.primary_model_name
+            logger.info(f"[PROCESSING] Reset to primary model: {self.primary_model_name}")
     
     def get_table_schema(self, session_id: str) -> Dict[str, Any]:
         """Get comprehensive schema information for AI analysis"""
@@ -275,10 +368,17 @@ Write a complete Python script that:
 3. Performs the analysis to answer the question
 4. Prints only the final result
 
+IMPORTANT: If you need to create charts or visualizations:
+- Use matplotlib with non-interactive backend: matplotlib.use('Agg')
+- DO NOT use plt.show() - this will cause popup windows
+- Instead, save charts or just print the data for the frontend to render
+
 Available variables:
 - engine: SQLAlchemy engine (already connected to database)
 - pd: pandas library
 - text: SQLAlchemy text function
+- plt: matplotlib.pyplot (configured for non-interactive use)
+- matplotlib: matplotlib library
 - session_id: current session ID
 
 Table name: {list(schema_info.keys())[0] if schema_info else 'data_table'}
@@ -306,24 +406,24 @@ Code:"""
                 pandas_prompt = self.generate_pandas_prompt(query, schema_info)
             
             # Generate code using LLM
-            logger.info(f"🔄 Generating code for query: '{query}' (attempt {attempt})")
+            logger.info(f"[PROCESSING] Generating code for query: '{query}' (attempt {attempt})")
             generated_code = self._call_llm_api(pandas_prompt)
             
             if not generated_code or generated_code.strip() == "":
                 raise Exception("Empty code generated")
             
-            logger.info(f"📝 Generated code (length: {len(generated_code)} chars):")
+            logger.info(f"[NOTE] Generated code (length: {len(generated_code)} chars):")
             logger.info(f"```python\n{generated_code}\n```")
             
             # Test the code syntax before returning
             try:
                 compile(generated_code, '<string>', 'exec')
-                logger.info(f"✅ Code syntax validation passed")
+                logger.info(f"[SUCCESS] Code syntax validation passed")
             except SyntaxError as e:
                 logger.error(f"❌ Syntax error in generated code: {str(e)}")
                 raise Exception(f"Syntax error in generated code: {str(e)}")
             
-            logger.info(f"✅ Code generation successful")
+            logger.info(f"[SUCCESS] Code generation successful")
             return generated_code
             
         except Exception as e:
@@ -341,7 +441,7 @@ Code:"""
                 raise Exception(f"Maximum execution attempts ({self.max_retry_attempts}) exceeded")
             
             # Execute the code
-            logger.info(f"🚀 Executing code (attempt {attempt}):")
+            logger.info(f"[START] Executing code (attempt {attempt}):")
             logger.info(f"```python\n{code}\n```")
             
             result = self.execute_code_safely(code, session_id)
@@ -350,8 +450,8 @@ Code:"""
                 logger.error(f"❌ Code execution failed: {result}")
                 raise Exception(result)
             
-            logger.info(f"✅ Code execution successful!")
-            logger.info(f"📊 Execution result (length: {len(result)} chars):")
+            logger.info(f"[SUCCESS] Code execution successful!")
+            logger.info(f"[CHART] Execution result (length: {len(result)} chars):")
             logger.info(f"```\n{result}\n```")
             
             return result
@@ -423,16 +523,16 @@ Fixed code:"""
                 raise Exception(f"Maximum synthesis attempts ({self.max_synthesis_attempts}) exceeded")
             
             synthesis_prompt = self.generate_synthesis_prompt(query, raw_data)
-            logger.info(f"🔄 Synthesizing result for query: '{query}' (attempt {attempt})")
-            logger.info(f"📊 Raw data length: {len(raw_data)} chars")
+            logger.info(f"[PROCESSING] Synthesizing result for query: '{query}' (attempt {attempt})")
+            logger.info(f"[CHART] Raw data length: {len(raw_data)} chars")
             
             synthesis_result = self._call_llm_api(synthesis_prompt)
             
             if not synthesis_result or synthesis_result.strip() == "":
                 raise Exception("Empty synthesis result")
             
-            logger.info(f"✅ Result synthesis successful!")
-            logger.info(f"📝 Synthesis result (length: {len(synthesis_result)} chars):")
+            logger.info(f"[SUCCESS] Result synthesis successful!")
+            logger.info(f"[NOTE] Synthesis result (length: {len(synthesis_result)} chars):")
             logger.info(f"```\n{synthesis_result}\n```")
             
             return synthesis_result
@@ -453,6 +553,8 @@ Fixed code:"""
             'engine': engine,
             'text': text,
             'session_id': session_id,
+            'plt': plt,
+            'matplotlib': matplotlib,
             '__builtins__': {
                 'print': print,
                 'len': len,
@@ -511,6 +613,10 @@ Fixed code:"""
         sys.stdout = captured_output = io.StringIO()
         
         try:
+            # Ensure matplotlib is configured for non-interactive use
+            matplotlib.use('Agg')
+            plt.ioff()  # Turn off interactive mode
+            
             # Execute the code
             exec(code, safe_globals)
             result = captured_output.getvalue()
@@ -537,6 +643,7 @@ Fixed code:"""
     
     def reset_credit_tracking(self):
         """Reset credit tracking counters for all API keys"""
+        logger.info(f"[DELETE] Resetting credit tracking for {len(self.api_key_usage)} API keys")
         self.api_call_count = 0
         self.total_tokens_used = 0
         for api_key in self.api_key_usage:
@@ -545,7 +652,7 @@ Fixed code:"""
                 'tokens_used': 0,
                 'last_used': None
             }
-        logger.info("Credit tracking reset for all API keys")
+        logger.info("[DELETE] Credit tracking reset successfully")
     
     def generate_synthesis_prompt(self, query: str, raw_data: str) -> str:
         """Generate prompt for result synthesis"""
@@ -610,7 +717,7 @@ Response:"""
         is_multi_step = any(indicator in query.lower() for indicator in multi_step_indicators)
         
         if is_multi_step:
-            logger.info(f"🔄 Detected multi-step query: {query}")
+            logger.info(f"[PROCESSING] Detected multi-step query: {query}")
             
             # Try to split by common separators
             if " and " in query.lower():
@@ -624,7 +731,7 @@ Response:"""
                 # Keep as single query
                 parts = [query]
             
-            logger.info(f"📝 Split into {len(parts)} parts: {parts}")
+            logger.info(f"[NOTE] Split into {len(parts)} parts: {parts}")
             return parts
         
         return [query]
@@ -632,7 +739,7 @@ Response:"""
     def _break_down_query_into_tasks(self, query: str, schema_info: Dict) -> List[Dict[str, str]]:
         """Use AI to break down complex queries into individual tasks"""
         try:
-            logger.info(f"🔄 Breaking down query into tasks: {query}")
+            logger.info(f"[PROCESSING] Breaking down query into tasks: {query}")
             
             # Create a prompt for task breakdown
             breakdown_prompt = f"""You are a data analysis task planner. Given a user's complex query and the available data schema, break it down into individual, actionable tasks.
@@ -678,13 +785,13 @@ Return ONLY the JSON array, no other text:"""
                 try:
                     # Parse the JSON response
                     tasks = json.loads(response)
-                    logger.info(f"✅ Successfully broke down query into {len(tasks)} tasks")
+                    logger.info(f"[SUCCESS] Successfully broke down query into {len(tasks)} tasks")
                     for i, task in enumerate(tasks):
-                        logger.info(f"📋 Task {i+1}: {task.get('description', 'No description')} (Chart: {task.get('chart_type', 'none')})")
+                        logger.info(f"[TASK] Task {i+1}: {task.get('description', 'No description')} (Chart: {task.get('chart_type', 'none')})")
                     return tasks
                 except json.JSONDecodeError as e:
                     logger.error(f"❌ Failed to parse task breakdown JSON: {e}")
-                    logger.error(f"📝 Raw response: {response}")
+                    logger.error(f"[NOTE] Raw response: {response}")
                     return self._fallback_task_breakdown(query)
             else:
                 logger.warning("⚠️ No response from AI for task breakdown, using fallback")
@@ -696,7 +803,7 @@ Return ONLY the JSON array, no other text:"""
     
     def _fallback_task_breakdown(self, query: str) -> List[Dict[str, str]]:
         """Fallback task breakdown when AI fails"""
-        logger.info("🔄 Using fallback task breakdown")
+        logger.info("[PROCESSING] Using fallback task breakdown")
         
         # Simple keyword-based breakdown
         tasks = []
@@ -753,13 +860,13 @@ Return ONLY the JSON array, no other text:"""
                 "priority": 1
             })
         
-        logger.info(f"📋 Fallback breakdown created {len(tasks)} tasks")
+        logger.info(f"[TASK] Fallback breakdown created {len(tasks)} tasks")
         return tasks
     
     def _process_single_task(self, task: Dict[str, str], session_id: str, schema_info: Dict) -> Dict[str, Any]:
         """Process a single task and return the result"""
         try:
-            logger.info(f"🔄 Processing task: {task['description']}")
+            logger.info(f"[PROCESSING] Processing task: {task['description']}")
             
             # Generate code for this specific task
             generated_code = self._generate_code_with_retry(task['query'], schema_info)
@@ -800,7 +907,7 @@ Return ONLY the JSON array, no other text:"""
             parsed_result['description'] = task['description']
             parsed_result['priority'] = task['priority']
             
-            logger.info(f"✅ Completed task: {task['description']}")
+            logger.info(f"[SUCCESS] Completed task: {task['description']}")
             return parsed_result
             
         except Exception as e:
@@ -824,7 +931,7 @@ Return ONLY the JSON array, no other text:"""
             logger.info(f"🔑 Available API keys: {len(self.gemini_api_keys)}")
             
             # Step 1: Get schema information
-            logger.info(f"📊 Retrieving schema for session: {session_id}")
+            logger.info(f"[CHART] Retrieving schema for session: {session_id}")
             schema_info = data_processor.get_table_schema(session_id)
             
             if not schema_info:
@@ -837,27 +944,27 @@ Return ONLY the JSON array, no other text:"""
                     "tasks": []
                 }
             
-            logger.info(f"✅ Schema retrieved for session {session_id}: {len(schema_info)} tables")
+            logger.info(f"[SUCCESS] Schema retrieved for session {session_id}: {len(schema_info)} tables")
             
             # Step 2: Break down the query into tasks
-            logger.info(f"🔄 Breaking down query into tasks...")
+            logger.info(f"[PROCESSING] Breaking down query into tasks...")
             tasks = self._break_down_query_into_tasks(query, schema_info)
             
             if not tasks:
                 logger.warning("⚠️ No tasks generated, falling back to single query processing")
                 return self.get_answer(query, session_id)
             
-            logger.info(f"📋 Generated {len(tasks)} tasks to process")
+            logger.info(f"[TASK] Generated {len(tasks)} tasks to process")
             
             # Step 3: Process tasks sequentially
             results = []
             for i, task in enumerate(tasks):
-                logger.info(f"🔄 Processing task {i+1}/{len(tasks)}: {task['description']}")
+                logger.info(f"[PROCESSING] Processing task {i+1}/{len(tasks)}: {task['description']}")
                 result = self._process_single_task(task, session_id, schema_info)
                 results.append(result)
             
             # Step 4: Combine results
-            logger.info(f"🔄 Combining {len(results)} task results...")
+            logger.info(f"[PROCESSING] Combining {len(results)} task results...")
             
             # Create a comprehensive response
             combined_answer = f"I've analyzed your request and completed {len(results)} tasks:\n\n"
@@ -877,7 +984,7 @@ Return ONLY the JSON array, no other text:"""
                 else:
                     selected_chart = charts_generated[0]
                 
-                logger.info(f"📊 Using chart from task: {selected_chart['description']}")
+                logger.info(f"[CHART] Using chart from task: {selected_chart['description']}")
                 
                 final_result = {
                     "answer": combined_answer,
@@ -901,7 +1008,7 @@ Return ONLY the JSON array, no other text:"""
                     "tasks": results
                 }
             
-            logger.info(f"✅ Successfully processed {len(results)} tasks")
+            logger.info(f"[SUCCESS] Successfully processed {len(results)} tasks")
             log_query_end(query, True, time.time() - start_time)
             return final_result
                 
@@ -932,7 +1039,7 @@ Return ONLY the JSON array, no other text:"""
                 }
             
             database_session_id = chat_session.database_session_id
-            logger.info(f"💬 Processing query in chat {chat_id} with database {database_session_id}")
+            logger.info(f"[CHAT] Processing query in chat {chat_id} with database {database_session_id}")
             
             # Get chat context
             context = chat_session_manager.get_chat_context(chat_id)
@@ -942,7 +1049,7 @@ Return ONLY the JSON array, no other text:"""
             # Check if we have cached schema info
             schema_info = context.get("schema_info")
             if not schema_info:
-                logger.info(f"📊 Retrieving fresh schema for chat {chat_id}")
+                logger.info(f"[CHART] Retrieving fresh schema for chat {chat_id}")
                 schema_info = data_processor.get_table_schema(database_session_id)
                 if schema_info:
                     chat_session_manager.update_chat_context(chat_id, {"schema_info": schema_info})
@@ -955,7 +1062,7 @@ Return ONLY the JSON array, no other text:"""
                         "chart_type": "none"
                     }
             else:
-                logger.info(f"📊 Using cached schema for chat {chat_id}")
+                logger.info(f"[CHART] Using cached schema for chat {chat_id}")
             
             # Add conversation context to the query
             conversation_history = context.get("conversation_history", [])
@@ -991,7 +1098,7 @@ Return ONLY the JSON array, no other text:"""
             result["database_session_id"] = database_session_id
             result["message_count"] = chat_session.message_count
             
-            logger.info(f"✅ Successfully processed query for chat {chat_id}")
+            logger.info(f"[SUCCESS] Successfully processed query for chat {chat_id}")
             log_query_end(query, True, time.time() - start_time)
             return result
                 
@@ -1051,7 +1158,7 @@ Please provide a response that builds on our previous discussion while answering
     def _parse_synthesis_result(self, synthesis_result: str, raw_data: str, generated_code: str) -> Dict[str, Any]:
         """Parse the synthesis result and generate charts when appropriate"""
         try:
-            logger.info(f"🔄 Parsing synthesis result: {synthesis_result[:200]}...")
+            logger.info(f"[PROCESSING] Parsing synthesis result: {synthesis_result[:200]}...")
             
             # Default response
             result = {
@@ -1066,14 +1173,14 @@ Please provide a response that builds on our previous discussion while answering
             
             # Check if the result contains chart information
             if "| Chart:" in synthesis_result:
-                logger.info("📊 Found chart format in synthesis result")
+                logger.info("[CHART] Found chart format in synthesis result")
                 parts = synthesis_result.split("|")
                 answer_part = parts[0].replace("Answer:", "").strip()
                 chart_part = parts[1].replace("Chart:", "").strip() if len(parts) > 1 else ""
                 data_part = parts[2].replace("Data:", "").strip() if len(parts) > 2 else ""
                 
-                logger.info(f"📝 Answer part: {answer_part[:100]}...")
-                logger.info(f"📊 Chart part: {chart_part}")
+                logger.info(f"[NOTE] Answer part: {answer_part[:100]}...")
+                logger.info(f"[CHART] Chart part: {chart_part}")
                 logger.info(f"📈 Data part: {data_part}")
                 
                 result["answer"] = answer_part
@@ -1082,11 +1189,11 @@ Please provide a response that builds on our previous discussion while answering
                 
                 # Generate actual chart data if chart is suggested
                 if result["chart_type"] != "none" and result["chart_type"] in ["bar", "pie", "line", "scatter"]:
-                    logger.info(f"🔄 Generating chart data for type: {result['chart_type']}")
+                    logger.info(f"[PROCESSING] Generating chart data for type: {result['chart_type']}")
                     chart_data = self._generate_chart_data(raw_data, result["chart_type"], data_part)
                     if chart_data:
                         result["chart_data"] = chart_data
-                        logger.info(f"📊 Generated {result['chart_type']} chart data successfully")
+                        logger.info(f"[CHART] Generated {result['chart_type']} chart data successfully")
                     else:
                         result["chart_type"] = "none"
                         logger.warning("⚠️ Could not generate chart data, setting chart_type to 'none'")
@@ -1094,13 +1201,13 @@ Please provide a response that builds on our previous discussion while answering
                     logger.warning(f"⚠️ Invalid chart type: {result['chart_type']}")
             
             elif synthesis_result.startswith("Answer:"):
-                logger.info("📝 Found simple answer format (no chart)")
+                logger.info("[NOTE] Found simple answer format (no chart)")
                 # Simple answer format
                 result["answer"] = synthesis_result.replace("Answer:", "").strip()
             else:
                 logger.warning("⚠️ No recognized format found in synthesis result")
             
-            logger.info(f"✅ Final result - Chart type: {result['chart_type']}, Chart data: {result['chart_data'] is not None}")
+            logger.info(f"[SUCCESS] Final result - Chart type: {result['chart_type']}, Chart data: {result['chart_data'] is not None}")
             return result
             
         except Exception as e:
@@ -1118,8 +1225,8 @@ Please provide a response that builds on our previous discussion while answering
     def _generate_chart_data(self, raw_data: str, chart_type: str, data_description: str) -> Dict[str, Any]:
         """Generate actual chart data from raw analysis results"""
         try:
-            logger.info(f"🔄 Generating {chart_type} chart data from: {raw_data[:200]}...")
-            logger.info(f"📝 Data description: {data_description}")
+            logger.info(f"[PROCESSING] Generating {chart_type} chart data from: {raw_data[:200]}...")
+            logger.info(f"[NOTE] Data description: {data_description}")
             
             # This is a simplified chart data generator
             # In a real implementation, you'd parse the raw_data more intelligently
@@ -1133,7 +1240,7 @@ Please provide a response that builds on our previous discussion while answering
                 matches = re.findall(department_pattern, raw_data)
                 
                 if matches:
-                    logger.info(f"📊 Found department pattern matches: {matches}")
+                    logger.info(f"[CHART] Found department pattern matches: {matches}")
                     return {
                         "type": "bar",
                         "data": {
@@ -1151,7 +1258,7 @@ Please provide a response that builds on our previous discussion while answering
                 city_matches = re.findall(city_pattern, raw_data)
                 
                 if city_matches:
-                    logger.info(f"📊 Found city pattern matches: {city_matches}")
+                    logger.info(f"[CHART] Found city pattern matches: {city_matches}")
                     return {
                         "type": "bar",
                         "data": {
@@ -1169,7 +1276,7 @@ Please provide a response that builds on our previous discussion while answering
                 dept_matches = re.findall(dept_pattern, raw_data)
                 
                 if dept_matches:
-                    logger.info(f"📊 Found department pattern matches: {dept_matches}")
+                    logger.info(f"[CHART] Found department pattern matches: {dept_matches}")
                     return {
                         "type": "bar",
                         "data": {
@@ -1187,7 +1294,7 @@ Please provide a response that builds on our previous discussion while answering
                 seattle_matches = re.findall(seattle_pattern, raw_data)
                 
                 if seattle_matches:
-                    logger.info(f"📊 Found Seattle pattern matches: {seattle_matches}")
+                    logger.info(f"[CHART] Found Seattle pattern matches: {seattle_matches}")
                     return {
                         "type": "bar",
                         "data": {
@@ -1239,7 +1346,7 @@ Please provide a response that builds on our previous discussion while answering
                 matches = re.findall(department_pattern, raw_data)
                 
                 if matches:
-                    logger.info(f"📊 Found pie chart department pattern matches: {matches}")
+                    logger.info(f"[CHART] Found pie chart department pattern matches: {matches}")
                     return {
                         "type": "pie",
                         "data": {
@@ -1256,7 +1363,7 @@ Please provide a response that builds on our previous discussion while answering
                 dept_matches = re.findall(dept_pattern, raw_data)
                 
                 if dept_matches:
-                    logger.info(f"📊 Found pie chart department pattern matches: {dept_matches}")
+                    logger.info(f"[CHART] Found pie chart department pattern matches: {dept_matches}")
                     return {
                         "type": "pie",
                         "data": {
@@ -1269,14 +1376,14 @@ Please provide a response that builds on our previous discussion while answering
                     }
             
             # Try more generic patterns if specific ones don't match
-            logger.info("🔄 Trying generic pattern matching...")
+            logger.info("[PROCESSING] Trying generic pattern matching...")
             
             # Look for any word-number patterns
             generic_pattern = r'(\w+)\s*[:\-]?\s*(\d+)'
             generic_matches = re.findall(generic_pattern, raw_data)
             
             if generic_matches and len(generic_matches) >= 2:
-                logger.info(f"📊 Found generic pattern matches: {generic_matches}")
+                logger.info(f"[CHART] Found generic pattern matches: {generic_matches}")
                 return {
                     "type": chart_type,
                     "data": {
@@ -1307,7 +1414,7 @@ Please provide a response that builds on our previous discussion while answering
             logger.info(f"🔑 Available API keys: {len(self.gemini_api_keys)}")
             
             # Step 1: Get schema information
-            logger.info(f"📊 Retrieving schema for session: {session_id}")
+            logger.info(f"[CHART] Retrieving schema for session: {session_id}")
             schema_info = data_processor.get_table_schema(session_id)
             
             if not schema_info:
@@ -1319,14 +1426,14 @@ Please provide a response that builds on our previous discussion while answering
                     "chart_type": "none"
                 }
             
-            logger.info(f"✅ Schema retrieved for session {session_id}: {len(schema_info)} tables")
+            logger.info(f"[SUCCESS] Schema retrieved for session {session_id}: {len(schema_info)} tables")
             for table_name, table_info in schema_info.items():
-                logger.info(f"📋 Table: {table_name} with {len(table_info['columns'])} columns")
+                logger.info(f"[TASK] Table: {table_name} with {len(table_info['columns'])} columns")
             
             # Step 1.5: Handle multi-step queries
             query_parts = self._handle_multi_step_query(query)
             if len(query_parts) > 1:
-                logger.info(f"🔄 Processing {len(query_parts)} query parts")
+                logger.info(f"[PROCESSING] Processing {len(query_parts)} query parts")
                 # For now, process the first part that asks for visualization
                 visualization_query = None
                 for part in query_parts:
@@ -1336,10 +1443,10 @@ Please provide a response that builds on our previous discussion while answering
                 
                 if visualization_query:
                     query = visualization_query
-                    logger.info(f"📊 Using visualization-focused query: {query}")
+                    logger.info(f"[CHART] Using visualization-focused query: {query}")
             
             # Step 2: Generate pandas code with retry logic
-            logger.info(f"🔄 Starting code generation phase...")
+            logger.info(f"[PROCESSING] Starting code generation phase...")
             generated_code = self._generate_code_with_retry(query, schema_info)
             
             if not generated_code:
@@ -1351,10 +1458,10 @@ Please provide a response that builds on our previous discussion while answering
                     "chart_type": "none"
                 }
             
-            logger.info("✅ Code generation phase completed")
+            logger.info("[SUCCESS] Code generation phase completed")
             
             # Step 3: Execute the code safely with retry logic
-            logger.info(f"🚀 Starting code execution phase...")
+            logger.info(f"[START] Starting code execution phase...")
             raw_result = self._execute_code_with_retry(generated_code, session_id)
             
             if raw_result.startswith("Error executing code"):
@@ -1366,23 +1473,23 @@ Please provide a response that builds on our previous discussion while answering
                     "chart_type": "none"
                 }
             
-            logger.info("✅ Code execution phase completed")
+            logger.info("[SUCCESS] Code execution phase completed")
             
             # Step 4: Synthesize the result with retry logic
-            logger.info(f"🔄 Starting result synthesis phase...")
+            logger.info(f"[PROCESSING] Starting result synthesis phase...")
             synthesis_result = self._synthesize_result_with_retry(query, raw_result)
             
-            logger.info("✅ Result synthesis phase completed")
+            logger.info("[SUCCESS] Result synthesis phase completed")
             
             # Step 5: Parse the synthesis result
-            logger.info(f"🔄 Parsing synthesis result...")
+            logger.info(f"[PROCESSING] Parsing synthesis result...")
             
             # Parse the new format: "Answer: ... | Chart: ... | Data: ..." or just "Answer: ..."
             parsed_result = self._parse_synthesis_result(synthesis_result, raw_result, generated_code)
             
-            logger.info(f"✅ Successfully parsed synthesis response")
-            logger.info(f"📝 Final answer: {parsed_result.get('answer', '')[:100]}...")
-            logger.info(f"📊 Chart type: {parsed_result.get('chart_type', 'none')}")
+            logger.info(f"[SUCCESS] Successfully parsed synthesis response")
+            logger.info(f"[NOTE] Final answer: {parsed_result.get('answer', '')[:100]}...")
+            logger.info(f"[CHART] Chart type: {parsed_result.get('chart_type', 'none')}")
             
             log_query_end(query, True, time.time() - start_time)
             return parsed_result
@@ -1390,7 +1497,7 @@ Please provide a response that builds on our previous discussion while answering
         except Exception as e:
             logger.error(f"💥 Error processing query '{query}': {str(e)}")
             logger.error(f"🔍 Error type: {type(e).__name__}")
-            logger.error(f"📊 Current API calls: {self.api_call_count}, Tokens: {self.total_tokens_used}")
+            logger.error(f"[CHART] Current API calls: {self.api_call_count}, Tokens: {self.total_tokens_used}")
             
             log_query_end(query, False, time.time() - start_time)
             return {

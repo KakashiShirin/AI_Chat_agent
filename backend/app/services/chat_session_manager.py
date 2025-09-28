@@ -50,7 +50,7 @@ class ChatSessionManager:
         )
         
         self.sessions[chat_id] = session
-        logger.info(f"📱 Created new chat session: {chat_id} for database: {database_session_id}")
+        logger.info(f"[MOBILE] Created new chat session: {chat_id} for database: {database_session_id}")
         return chat_id
     
     def get_chat_session(self, chat_id: str) -> Optional[ChatSession]:
@@ -68,7 +68,7 @@ class ChatSessionManager:
         if session:
             session.context.update(context_updates)
             session.message_count += 1
-            logger.info(f"📝 Updated context for chat {chat_id}")
+            logger.info(f"[NOTE] Updated context for chat {chat_id}")
             return True
         return False
     
@@ -88,7 +88,7 @@ class ChatSessionManager:
             if len(session.context["conversation_history"]) > 20:
                 session.context["conversation_history"] = session.context["conversation_history"][-20:]
             
-            logger.info(f"💬 Added message to chat {chat_id} history")
+            logger.info(f"[CHAT] Added message to chat {chat_id} history")
             return True
         return False
     
@@ -117,7 +117,7 @@ class ChatSessionManager:
         
         for chat_id in expired_sessions:
             del self.sessions[chat_id]
-            logger.info(f"🗑️ Cleaned up expired chat session: {chat_id}")
+            logger.info(f"[DELETE] Cleaned up expired chat session: {chat_id}")
         
         return len(expired_sessions)
     
@@ -148,9 +148,17 @@ class ChatSessionManager:
         """Delete a specific chat session"""
         if chat_id in self.sessions:
             del self.sessions[chat_id]
-            logger.info(f"🗑️ Deleted chat session: {chat_id}")
+            logger.info(f"[DELETE] Deleted chat session: {chat_id}")
             return True
         return False
+    
+    def clear_all_sessions(self) -> int:
+        """Clear all chat sessions"""
+        session_count = len(self.sessions)
+        logger.info(f"[DELETE] Clearing all {session_count} chat sessions")
+        self.sessions.clear()
+        logger.info(f"[DELETE] Cleared all {session_count} chat sessions")
+        return session_count
 
 # Global instance
 chat_session_manager = ChatSessionManager()

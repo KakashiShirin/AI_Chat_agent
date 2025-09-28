@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BarChart3, Table, AlertCircle, Loader2 } from 'lucide-react'
+import { BarChart3, Table, AlertCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import toast from 'react-hot-toast'
 import { apiService } from '../services/api'
@@ -134,15 +134,19 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
   if (!sessionId) {
     console.log('DataVisualization: Rendering no session state')
     return (
-      <div className="card text-center">
-        <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Data Available</h3>
-        <p className="text-gray-600 mb-4">
+      <div className="card-elevated text-center animate-scale-in">
+        <div className="w-24 h-24 bg-gradient-primary rounded-3xl flex items-center justify-center mx-auto mb-6 animate-float">
+          <BarChart3 className="w-12 h-12 text-white" />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">No Data Available</h3>
+        <p className="text-gray-600 mb-6 text-lg">
           Please upload a data file first to view visualizations.
         </p>
-        <p className="text-sm text-gray-500">
-          Go to the Upload tab to get started.
-        </p>
+        <div className="bg-primary-50 rounded-xl p-4 border border-primary-200">
+          <p className="text-sm text-primary-700 font-medium">
+            📊 Go to the Upload tab to get started
+          </p>
+        </div>
       </div>
     )
   }
@@ -150,11 +154,15 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
   if (isLoading) {
     console.log('DataVisualization: Rendering loading state')
     return (
-      <div className="card text-center">
-        <Loader2 className="w-16 h-16 text-primary-600 mx-auto mb-4 animate-spin" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Data Schema</h3>
-        <p className="text-gray-600">Please wait while we load your data structure...</p>
-        <p className="text-sm text-gray-500 mt-2">Session ID: {sessionId}</p>
+      <div className="card-elevated text-center animate-scale-in">
+        <div className="w-24 h-24 bg-gradient-primary rounded-3xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+          <BarChart3 className="w-12 h-12 text-white" />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">Loading Data Schema</h3>
+        <p className="text-gray-600 mb-4">Please wait while we load your data structure...</p>
+        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+          <p className="text-sm text-gray-500 font-mono">Session ID: {sessionId}</p>
+        </div>
       </div>
     )
   }
@@ -162,17 +170,25 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
   if (!schemaInfo) {
     console.log('DataVisualization: Rendering no schema state')
     return (
-      <div className="card text-center">
-        <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to Load Data</h3>
-        <p className="text-gray-600 mb-4">
+      <div className="card-elevated text-center animate-scale-in">
+        <div className="w-24 h-24 bg-gradient-error rounded-3xl flex items-center justify-center mx-auto mb-6">
+          <AlertCircle className="w-12 h-12 text-white" />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">Failed to Load Data</h3>
+        <p className="text-gray-600 mb-6 text-lg">
           We couldn't load your data schema. Please try again.
         </p>
-        <div className="space-y-2">
-          <p className="text-sm text-gray-500">Session ID: {sessionId}</p>
-          <p className="text-sm text-gray-500">Connection: {isConnected ? 'Connected' : 'Disconnected'}</p>
+        <div className="space-y-3 mb-6">
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+            <p className="text-sm text-gray-500 font-mono">Session ID: {sessionId}</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+            <p className="text-sm text-gray-500 font-mono">
+              Connection: {isConnected ? 'Connected' : 'Disconnected'}
+            </p>
+          </div>
         </div>
-        <button onClick={loadSchema} className="btn-primary mt-4">
+        <button onClick={loadSchema} className="btn-primary">
           Retry
         </button>
       </div>
@@ -186,17 +202,25 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
   if (tables.length === 0) {
     console.log('DataVisualization: No tables found in schema')
     return (
-      <div className="card text-center">
-        <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tables Found</h3>
-        <p className="text-gray-600 mb-4">
+      <div className="card-elevated text-center animate-scale-in">
+        <div className="w-24 h-24 bg-gradient-warning rounded-3xl flex items-center justify-center mx-auto mb-6">
+          <AlertCircle className="w-12 h-12 text-white" />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">No Tables Found</h3>
+        <p className="text-gray-600 mb-6 text-lg">
           The data schema was loaded but no tables were found.
         </p>
-        <div className="space-y-2">
-          <p className="text-sm text-gray-500">Session ID: {sessionId}</p>
-          <p className="text-sm text-gray-500">Schema keys: {Object.keys(schemaInfo).join(', ')}</p>
+        <div className="space-y-3 mb-6">
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+            <p className="text-sm text-gray-500 font-mono">Session ID: {sessionId}</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+            <p className="text-sm text-gray-500 font-mono">
+              Schema keys: {Object.keys(schemaInfo).join(', ')}
+            </p>
+          </div>
         </div>
-        <button onClick={loadSchema} className="btn-primary mt-4">
+        <button onClick={loadSchema} className="btn-primary">
           Retry
         </button>
       </div>
@@ -213,15 +237,20 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
       {/* Table Selection */}
-      <div className="card">
-        <div className="flex items-center space-x-3 mb-4">
-          <Table className="w-6 h-6 text-primary-600" />
-          <h2 className="text-xl font-bold text-gray-900">Data Tables</h2>
+      <div className="card-elevated">
+        <div className="flex items-center space-x-4 mb-6">
+          <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center">
+            <Table className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Data Tables</h2>
+            <p className="text-gray-600">Select a table to view its structure and data</p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid-responsive-3">
           {tables.map((tableName) => {
             const tableInfo = schemaInfo.schema[tableName]
             const isSelected = selectedTable === tableName
@@ -230,16 +259,35 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
               <button
                 key={tableName}
                 onClick={() => setSelectedTable(tableName)}
-                className={`p-4 rounded-lg border-2 text-left transition-colors duration-200 ${
+                className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 hover:scale-105 min-h-[120px] ${
                   isSelected
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-primary-500 bg-primary-50 shadow-lg'
+                    : 'border-gray-200 hover:border-primary-300 hover:shadow-md'
                 }`}
               >
-                <h3 className="font-medium text-gray-900 mb-2">{tableName}</h3>
-                <div className="text-sm text-gray-600">
-                  <p>{tableInfo.columns?.length || 0} columns</p>
-                  <p>{tableInfo.sample_data?.length || 0} sample rows</p>
+                <div className="flex items-start space-x-3 mb-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isSelected ? 'bg-primary-500' : 'bg-gray-200'
+                  }`}>
+                    <Table className={`w-4 h-4 ${
+                      isSelected ? 'text-white' : 'text-gray-600'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 break-all text-sm leading-tight" title={tableName}>
+                      {tableName}
+                    </h3>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <span>{tableInfo.columns?.length || 0} columns</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    <span>{tableInfo.sample_data?.length || 0} sample rows</span>
+                  </div>
                 </div>
               </button>
             )
@@ -249,31 +297,41 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
 
       {/* Table Schema */}
       {selectedTable && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Table Schema: {selectedTable}
-          </h3>
+        <div className="card-elevated">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-10 h-10 bg-gradient-accent rounded-xl flex items-center justify-center">
+              <Table className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Table Schema</h3>
+              <p className="text-gray-600 break-all text-sm" title={selectedTable}>
+                {selectedTable && selectedTable.length > 30 ? `${selectedTable.substring(0, 30)}...` : selectedTable}
+              </p>
+            </div>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[200px]">
                     Column Name
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[150px]">
                     Data Type
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {schemaInfo.schema[selectedTable]?.columns?.map((column, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {column?.name || 'Unknown'}
+                  <tr key={index} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 break-words max-w-[200px]">
+                      <span className="block truncate" title={column?.name || 'Unknown'}>
+                        {column?.name || 'Unknown'}
+                      </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words max-w-[150px]">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800 truncate" title={column?.type || 'Unknown'}>
                         {column?.type || 'Unknown'}
                       </span>
                     </td>
@@ -287,34 +345,46 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
 
       {/* Sample Data */}
       {selectedTable && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Sample Data: {selectedTable}
-          </h3>
+        <div className="card-elevated">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-10 h-10 bg-gradient-success rounded-xl flex items-center justify-center">
+              <Table className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Sample Data</h3>
+              <p className="text-gray-600 break-all text-sm" title={selectedTable}>
+                {selectedTable && selectedTable.length > 30 ? `${selectedTable.substring(0, 30)}...` : selectedTable}
+              </p>
+            </div>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                   {schemaInfo.schema[selectedTable].columns.map((column, index) => (
                     <th
                       key={index}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[120px]"
                     >
-                      {column.name}
+                      <span className="block truncate" title={column.name}>
+                        {column.name}
+                      </span>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {schemaInfo.schema[selectedTable].sample_data.map((row, rowIndex) => (
-                  <tr key={rowIndex}>
+                  <tr key={rowIndex} className="hover:bg-gray-50 transition-colors">
                     {schemaInfo.schema[selectedTable].columns.map((column, colIndex) => (
                       <td
                         key={colIndex}
-                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                        className="px-6 py-4 text-sm text-gray-900 max-w-[200px]"
                       >
-                        {row[column.name] || '-'}
+                        <span className="block truncate" title={String(row[column.name] || '-')}>
+                          {row[column.name] || '-'}
+                        </span>
                       </td>
                     ))}
                   </tr>
@@ -327,29 +397,45 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
 
       {/* Charts */}
       {selectedTable && chartData && (
-        <div className="card">
-          <div className="flex items-center space-x-3 mb-6">
-            <BarChart3 className="w-6 h-6 text-primary-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Data Visualizations</h3>
+        <div className="card-elevated">
+          <div className="flex items-center space-x-4 mb-8">
+            <div className="w-12 h-12 bg-gradient-accent rounded-xl flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900">Data Visualizations</h3>
+              <p className="text-gray-600">Interactive charts and graphs for your data</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid-responsive-2">
             {/* Bar Chart */}
             {chartData.numericColumns.length > 0 && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Numeric Data Distribution</h4>
-                <div className="h-64">
+              <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
+                <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+                  <BarChart3 className="w-5 h-5 mr-2 text-blue-600" />
+                  Numeric Data Distribution
+                </h4>
+                <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData.data}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="index" />
-                      <YAxis />
-                      <Tooltip />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="index" stroke="#6b7280" />
+                      <YAxis stroke="#6b7280" />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
                       {chartData.numericColumns.map((column, index) => (
                         <Bar
                           key={column}
                           dataKey={column}
                           fill={COLORS[index % COLORS.length]}
+                          radius={[4, 4, 0, 0]}
                         />
                       ))}
                     </BarChart>
@@ -360,26 +446,36 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
 
             {/* Pie Chart for categorical data */}
             {selectedTable && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Categorical Distribution</h4>
-                <div className="h-64">
+              <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
+                <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+                  <BarChart3 className="w-5 h-5 mr-2 text-green-600" />
+                  Categorical Distribution
+                </h4>
+                <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={generatePieData(selectedTable, schemaInfo.schema[selectedTable].columns[0]?.name || '')}
+                        data={generatePieData(selectedTable, schemaInfo.schema[selectedTable].columns[0]?.name || '') || []}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
+                        outerRadius={100}
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {generatePieData(selectedTable, schemaInfo.schema[selectedTable].columns[0]?.name || '')?.map((entry, index) => (
+                        {(generatePieData(selectedTable, schemaInfo.schema[selectedTable].columns[0]?.name || '') || []).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -391,27 +487,37 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({ sessionId, isConn
 
       {/* No Charts Available */}
       {selectedTable && !chartData && (
-        <div className="card text-center">
-          <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Charts Available</h3>
-          <p className="text-gray-600 mb-4">
+        <div className="card-elevated text-center animate-scale-in">
+          <div className="w-24 h-24 bg-gradient-warning rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <BarChart3 className="w-12 h-12 text-white" />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">No Charts Available</h3>
+          <p className="text-gray-600 mb-6 text-lg">
             This table doesn't have the data needed for visualization.
           </p>
-          <div className="text-sm text-gray-500 space-y-1">
-            <p>• No numeric columns found for charts</p>
-            <p>• No sample data available</p>
-            <p>• Data structure may be incomplete</p>
+          <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
+            <div className="text-sm text-gray-600 space-y-3">
+              <div className="flex items-center justify-center space-x-2">
+                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                <span>No numeric columns found for charts</span>
+              </div>
+              <div className="flex items-center justify-center space-x-2">
+                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                <span>No sample data available</span>
+              </div>
+              <div className="flex items-center justify-center space-x-2">
+                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                <span>Data structure may be incomplete</span>
+              </div>
+            </div>
           </div>
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg text-left">
-            <p className="text-xs text-gray-600 font-mono">
-              Table: {selectedTable}
-            </p>
-            <p className="text-xs text-gray-600 font-mono">
-              Columns: {schemaInfo.schema[selectedTable]?.columns?.length || 0}
-            </p>
-            <p className="text-xs text-gray-600 font-mono">
-              Sample data: {schemaInfo.schema[selectedTable]?.sample_data?.length || 0} rows
-            </p>
+          <div className="bg-gray-100 rounded-xl p-4 text-left">
+            <h4 className="font-semibold text-gray-900 mb-3">Debug Information</h4>
+            <div className="space-y-2 text-sm text-gray-600 font-mono">
+              <p>Table: {selectedTable}</p>
+              <p>Columns: {schemaInfo.schema[selectedTable]?.columns?.length || 0}</p>
+              <p>Sample data: {schemaInfo.schema[selectedTable]?.sample_data?.length || 0} rows</p>
+            </div>
           </div>
         </div>
       )}

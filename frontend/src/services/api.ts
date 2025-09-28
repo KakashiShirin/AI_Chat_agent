@@ -208,6 +208,33 @@ export const apiService = {
     const response = await api.post('/api/v1/credits/reset')
     return response.data
   },
+
+  // Data cleanup
+  async clearAllData(): Promise<{ message: string; cleared_sessions: number; cleared_data: number }> {
+    const response = await api.post('/api/v1/cleanup/all')
+    return response.data
+  },
+
+  // Model management
+  async getModelStatus(): Promise<{
+    current_model: string;
+    primary_model: string;
+    fallback_model: string;
+    tertiary_model: string;
+    is_using_fallback: boolean;
+    model_tier: string;
+    api_keys_count: number;
+    total_calls: number;
+    total_tokens: number;
+  }> {
+    const response = await api.get('/api/v1/model/status')
+    return response.data
+  },
+
+  async resetToPrimaryModel(): Promise<{ message: string; current_model: string; primary_model: string }> {
+    const response = await api.post('/api/v1/model/reset')
+    return response.data
+  },
 }
 
 export default apiService

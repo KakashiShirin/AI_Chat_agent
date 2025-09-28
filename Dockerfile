@@ -22,5 +22,8 @@ ENV PORT=8000
 # Expose port
 EXPOSE 8000
 
+# Debug: List files to verify structure
+RUN ls -la /app
+
 # Run the application with shell expansion for PORT
 CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

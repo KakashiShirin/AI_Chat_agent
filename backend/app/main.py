@@ -14,8 +14,12 @@ import os
 # Get allowed origins from environment or use defaults
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 if os.getenv("ENVIRONMENT") == "production":
-    # Add common production domains
+    # Add common production domains - use specific patterns
     allowed_origins.extend([
+        "https://ai-data-agent-frontend.vercel.app",
+        "https://ai-data-agent-frontend-git-main.vercel.app",
+        "https://csv-chat-agent.vercel.app",
+        "https://csv-chat-agent-git-main.vercel.app",
         "https://*.vercel.app",
         "https://*.netlify.app",
         "https://*.railway.app"

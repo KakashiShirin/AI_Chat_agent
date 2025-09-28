@@ -4,6 +4,7 @@ import io
 import sys
 import google.generativeai as genai
 import logging
+import time
 from typing import Dict, Any, List
 from contextlib import redirect_stdout
 from app.core.config import settings
@@ -20,159 +21,132 @@ class AIAgent:
     """Core AI analysis engine for natural language data queries"""
     
     def __init__(self):
-        self.hf_api_key = settings.HUGGINGFACE_API_KEY
-        self.hf_api_url = "https://api-inference.huggingface.co/models"
-        self.model_name = "bigcode/starcoder"  # Primary model for code generation
-        self.fallback_model = "microsoft/CodeBERT-base"  # Fallback model
+        # Multi-Gemini API system
+        self.gemini_api_keys = []
+        self.current_api_index = 0
+        self.gemini_model_name = 'gemini-2.0-flash'
         
-        # Initialize Gemini
-        self.gemini_api_key = getattr(settings, 'GEMINI_API_KEY', '')
-        if self.gemini_api_key:
-            genai.configure(api_key=self.gemini_api_key)
-            self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+        # Initialize with default API key if available
+        default_key = getattr(settings, 'GEMINI_API_KEY', '')
+        if default_key:
+            self.gemini_api_keys.append(default_key)
+            genai.configure(api_key=default_key)
+            self.gemini_model = genai.GenerativeModel(self.gemini_model_name)
         
         # Retry and credit management settings
         self.max_retry_attempts = 3
         self.max_code_generation_attempts = 2
         self.max_synthesis_attempts = 2
         
-        # Credit tracking
+        # Credit tracking per API key
         self.api_call_count = 0
         self.total_tokens_used = 0
+        self.api_key_usage = {}  # Track usage per API key
         
-    def _call_huggingface_api(self, prompt: str, max_retries: int = 3) -> str:
-        """Call Hugging Face Inference API with retry logic"""
-        headers = {
-            "Authorization": f"Bearer {self.hf_api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 1000,
-                "temperature": 0.1,
-                "return_full_text": False
-            }
-        }
-        
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(
-                    f"{self.hf_api_url}/{self.model_name}",
-                    headers=headers,
-                    json=payload,
-                    timeout=30
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if isinstance(result, list) and len(result) > 0:
-                        return result[0].get("generated_text", "")
-                    return str(result)
-                elif response.status_code == 503 and attempt < max_retries - 1:
-                    # Model is loading, wait and retry
-                    import time
-                    time.sleep(5)
-                    continue
-                else:
-                    # Try fallback model
-                    if attempt == max_retries - 1:
-                        return self._call_fallback_model(prompt)
-                    
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise Exception(f"Hugging Face API error: {str(e)}")
-                continue
-                
-        return ""
-    
-    def _call_fallback_model(self, prompt: str) -> str:
-        """Call fallback model if primary model fails"""
-        headers = {
-            "Authorization": f"Bearer {self.hf_api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 1000,
-                "temperature": 0.1,
-                "return_full_text": False
-            }
-        }
-        
+    def add_gemini_api_key(self, api_key: str) -> bool:
+        """Add a new Gemini API key to the pool"""
         try:
-            response = requests.post(
-                f"{self.hf_api_url}/{self.fallback_model}",
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
+            # Test the API key first
+            genai.configure(api_key=api_key)
+            test_model = genai.GenerativeModel(self.gemini_model_name)
+            test_response = test_model.generate_content("test")
             
-            if response.status_code == 200:
-                result = response.json()
-                if isinstance(result, list) and len(result) > 0:
-                    return result[0].get("generated_text", "")
-                return str(result)
+            # If successful, add to pool
+            if api_key not in self.gemini_api_keys:
+                self.gemini_api_keys.append(api_key)
+                self.api_key_usage[api_key] = {
+                    'calls_made': 0,
+                    'tokens_used': 0,
+                    'last_used': None
+                }
+                logger.info(f"Added new Gemini API key (total: {len(self.gemini_api_keys)})")
+                return True
             else:
-                raise Exception(f"Fallback model failed: {response.status_code}")
+                logger.warning("API key already exists")
+                return False
                 
         except Exception as e:
-            raise Exception(f"Both models failed: {str(e)}")
+            logger.error(f"Failed to add API key: {str(e)}")
+            return False
     
-    def _call_gemini_api(self, prompt: str) -> str:
-        """Call Google Gemini API as fallback with comprehensive logging"""
+    def get_next_api_key(self) -> str:
+        """Get the next available API key in round-robin fashion"""
+        if not self.gemini_api_keys:
+            raise Exception("No Gemini API keys available")
+        
+        # Round-robin selection
+        api_key = self.gemini_api_keys[self.current_api_index]
+        self.current_api_index = (self.current_api_index + 1) % len(self.gemini_api_keys)
+        
+        return api_key
+    
+    
+    def _call_gemini_api(self, prompt: str, api_key: str = None) -> str:
+        """Call Google Gemini API with multi-key support"""
         try:
-            if not self.gemini_api_key:
-                raise Exception("Gemini API key not configured")
+            # Use provided API key or get next available one
+            if api_key is None:
+                api_key = self.get_next_api_key()
             
-            logger.info(f"Calling Gemini API (Call #{self.api_call_count + 1})")
-            self.api_call_count += 1
+            logger.info(f"Calling Gemini API with key #{self.gemini_api_keys.index(api_key) + 1}")
             
-            response = self.gemini_model.generate_content(prompt)
+            # Configure Gemini with the specific API key
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(self.gemini_model_name)
+            
+            response = model.generate_content(prompt)
             result = response.text
+            
+            # Update usage tracking
+            self.api_call_count += 1
+            self.api_key_usage[api_key]['calls_made'] += 1
+            self.api_key_usage[api_key]['last_used'] = time.time()
             
             # Log token usage if available
             if hasattr(response, 'usage_metadata'):
                 tokens = response.usage_metadata.total_token_count
                 self.total_tokens_used += tokens
-                logger.info(f"Gemini API call #{self.api_call_count}: {tokens} tokens used")
+                self.api_key_usage[api_key]['tokens_used'] += tokens
+                logger.info(f"Gemini API call: {tokens} tokens used")
             
             # Extract code from markdown code blocks if present
             if "```python" in result:
-                # Extract code between ```python and ```
                 start = result.find("```python") + 9
                 end = result.find("```", start)
                 if end != -1:
                     result = result[start:end].strip()
             elif "```" in result:
-                # Extract code between ``` and ```
                 start = result.find("```") + 3
                 end = result.find("```", start)
                 if end != -1:
                     result = result[start:end].strip()
             
-            logger.info(f"Gemini API call #{self.api_call_count} successful")
+            logger.info(f"Gemini API call successful")
             return result
             
         except Exception as e:
-            logger.error(f"Gemini API call #{self.api_call_count} failed: {str(e)}")
+            logger.error(f"Gemini API call failed: {str(e)}")
             raise Exception(f"Gemini API error: {str(e)}")
     
     def _call_llm_api(self, prompt: str) -> str:
-        """Call LLM API with fallback chain: HuggingFace -> Gemini"""
-        try:
-            # Try Hugging Face first
-            return self._call_huggingface_api(prompt)
-        except Exception as hf_error:
-            print(f"Hugging Face failed: {hf_error}")
+        """Call LLM API with multi-Gemini fallback system"""
+        if not self.gemini_api_keys:
+            raise Exception("No Gemini API keys available")
+        
+        last_error = None
+        
+        # Try each API key in order
+        for i, api_key in enumerate(self.gemini_api_keys):
             try:
-                # Fallback to Gemini
-                return self._call_gemini_api(prompt)
-            except Exception as gemini_error:
-                raise Exception(f"All LLM APIs failed. HF: {hf_error}, Gemini: {gemini_error}")
+                logger.info(f"Trying Gemini API key #{i + 1}")
+                return self._call_gemini_api(prompt, api_key)
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Gemini API key #{i + 1} failed: {str(e)}")
+                continue
+        
+        # If all API keys failed
+        raise Exception(f"All Gemini API keys failed. Last error: {last_error}")
     
     def get_table_schema(self, session_id: str) -> Dict[str, Any]:
         """Get comprehensive schema information for AI analysis"""
@@ -415,21 +389,29 @@ Fixed code:"""
             sys.stdout = old_stdout
     
     def get_credit_usage(self) -> Dict[str, Any]:
-        """Get current credit usage statistics"""
+        """Get current credit usage statistics for all API keys"""
         return {
-            "api_calls_made": self.api_call_count,
+            "total_api_calls": self.api_call_count,
             "total_tokens_used": self.total_tokens_used,
             "estimated_cost_usd": self.total_tokens_used * 0.000001,  # Rough estimate
+            "api_keys_count": len(self.gemini_api_keys),
+            "api_key_usage": self.api_key_usage,
             "max_retry_attempts": self.max_retry_attempts,
             "max_code_generation_attempts": self.max_code_generation_attempts,
             "max_synthesis_attempts": self.max_synthesis_attempts
         }
     
     def reset_credit_tracking(self):
-        """Reset credit tracking counters"""
+        """Reset credit tracking counters for all API keys"""
         self.api_call_count = 0
         self.total_tokens_used = 0
-        logger.info("Credit tracking reset")
+        for api_key in self.api_key_usage:
+            self.api_key_usage[api_key] = {
+                'calls_made': 0,
+                'tokens_used': 0,
+                'last_used': None
+            }
+        logger.info("Credit tracking reset for all API keys")
     
     def generate_synthesis_prompt(self, query: str, raw_data: str) -> str:
         """Generate prompt for result synthesis"""

@@ -14,6 +14,9 @@ class QueryRequest(BaseModel):
     query: str
     session_id: str
 
+class ApiKeyRequest(BaseModel):
+    api_key: str
+
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
@@ -130,6 +133,51 @@ async def reset_credit_tracking():
         return {"message": "Credit tracking reset successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error resetting credit tracking: {str(e)}")
+
+@router.post("/api-keys/add")
+async def add_api_key(request: ApiKeyRequest):
+    """Add a new Gemini API key to the pool"""
+    try:
+        success = ai_agent.add_gemini_api_key(request.api_key)
+        if success:
+            return {"message": "API key added successfully", "total_keys": len(ai_agent.gemini_api_keys)}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to add API key")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding API key: {str(e)}")
+
+@router.get("/api-keys/status")
+async def get_api_keys_status():
+    """Get status of all API keys"""
+    try:
+        usage = ai_agent.get_credit_usage()
+        return {
+            "total_api_keys": len(ai_agent.gemini_api_keys),
+            "api_key_usage": usage["api_key_usage"],
+            "total_calls": usage["total_api_calls"],
+            "total_tokens": usage["total_tokens_used"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting API key status: {str(e)}")
+
+@router.post("/api-keys/validate")
+async def validate_api_key(request: ApiKeyRequest):
+    """Validate a Gemini API key without adding it"""
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=request.api_key)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        test_response = model.generate_content("test")
+        
+        return {
+            "valid": True,
+            "message": "API key is valid and working"
+        }
+    except Exception as e:
+        return {
+            "valid": False,
+            "message": f"API key validation failed: {str(e)}"
+        }
 
 @router.get("/health")
 async def api_health_check():
